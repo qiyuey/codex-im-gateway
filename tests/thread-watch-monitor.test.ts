@@ -36,7 +36,7 @@ describe("ThreadWatchMonitor", () => {
     expect(sendRichMessage.mock.calls[0]?.[1]).toContain("completed");
     expect(sendRichMessage.mock.calls[0]?.[3]).toEqual([
       [
-        { text: "Continue", callbackData: "thread:thread-1" },
+        { text: "Switch", callbackData: "thread:thread-1" },
         { text: "Mute", callbackData: "mute:thread-1" },
       ],
     ]);
@@ -111,6 +111,49 @@ describe("ThreadWatchMonitor", () => {
     expect(state.getThreadWatch("telegram", "42")?.lastDeliveredTurnId).toBe("turn-new");
   });
 
+  it("does not deliver commentary from a transient interrupted view of an active turn", async () => {
+    const transient = snapshot({
+      latestTurn: interruptedTurn("Working on the requested change."),
+      latestTerminalTurn: interruptedTurn("Working on the requested change."),
+      latestTerminalTurnId: "turn-new",
+    });
+    const snapshots = [transient, snapshot()];
+    const reader = {
+      readThreadSnapshot: vi.fn(async () => snapshots.shift() ?? snapshot()),
+    };
+    const monitor = new ThreadWatchMonitor(state, reader, api, async () => true, 0);
+
+    await monitor.runOnce(1_000);
+
+    expect(sendRichMessage).not.toHaveBeenCalled();
+    expect(state.getThreadWatch("telegram", "42")?.lastDeliveredTurnId).toBe("turn-old");
+
+    await monitor.runOnce(2_000);
+
+    expect(sendRichMessage).toHaveBeenCalledTimes(1);
+    expect(sendRichMessage.mock.calls[0]?.[1]).toContain("completed result");
+  });
+
+  it("silently acknowledges a stable interrupted turn", async () => {
+    const interrupted = interruptedTurn("Partial output before the stop.", 12_000);
+    const reader = {
+      readThreadSnapshot: vi.fn(async () =>
+        snapshot({
+          latestTurn: interrupted,
+          latestTerminalTurn: interrupted,
+          latestTerminalTurnId: interrupted.turnId,
+        }),
+      ),
+    };
+    const monitor = new ThreadWatchMonitor(state, reader, api, async () => true, 0);
+
+    await monitor.runOnce(1_000);
+    await monitor.runOnce(2_000);
+
+    expect(sendRichMessage).not.toHaveBeenCalled();
+    expect(state.getThreadWatch("telegram", "42")?.lastDeliveredTurnId).toBe("turn-new");
+  });
+
   it("coalesces a blocked goal with its latest turn into one notification", async () => {
     const reader = {
       readThreadSnapshot: vi.fn(async () =>
@@ -122,7 +165,7 @@ describe("ThreadWatchMonitor", () => {
     await monitor.runOnce(1_000);
 
     expect(sendRichMessage).toHaveBeenCalledTimes(1);
-    expect(sendRichMessage.mock.calls[0]?.[1]).toContain("Blocked");
+    expect(sendRichMessage.mock.calls[0]?.[1]).toContain("# ⚠️ Task blocked");
     expect(state.getThreadWatch("telegram", "42")).toMatchObject({
       lastDeliveredTurnId: "turn-new",
       lastDeliveredGoalUpdatedAt: 12,
@@ -179,12 +222,16 @@ function snapshot(overrides: Partial<WatchedThreadSnapshot> = {}): WatchedThread
   };
 }
 
-function interruptedTurn(): NonNullable<WatchedThreadSnapshot["latestTurn"]> {
+function interruptedTurn(
+  finalMessage = "",
+  durationMs: number | null = null,
+): NonNullable<WatchedThreadSnapshot["latestTurn"]> {
   return {
     threadId: "thread-1",
     turnId: "turn-new",
     status: "interrupted",
-    finalMessage: "",
+    finalMessage,
     cwd: "/workspace",
+    durationMs,
   };
 }

@@ -1,38 +1,8 @@
-const DEFAULT_RICH_MARKDOWN_LIMIT = 32_000;
+import { isSafeRichMarkdownDestination, sanitizeRichHtmlTags } from "./rich-html-sanitizer.js";
+
+const DEFAULT_RICH_MARKDOWN_LIMIT = 32_768;
 const MAX_RICH_MARKDOWN_LINES = 450;
-const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:", "tg:"]);
-const RICH_HTML_TAGS = new Set([
-  "a",
-  "aside",
-  "b",
-  "blockquote",
-  "caption",
-  "cite",
-  "code",
-  "del",
-  "details",
-  "em",
-  "figcaption",
-  "figure",
-  "i",
-  "ins",
-  "mark",
-  "pre",
-  "s",
-  "strike",
-  "strong",
-  "sub",
-  "summary",
-  "sup",
-  "table",
-  "td",
-  "tg-emoji",
-  "tg-reference",
-  "tg-spoiler",
-  "th",
-  "tr",
-  "u",
-]);
+const RICH_MARKDOWN_LINK_PATTERN = /(!?)\[([^\]\n]+)]\(([^\s)]+)(?:\s+"[^"\n]*")?\)/g;
 
 export function prepareRichMarkdown(value: string, limit = DEFAULT_RICH_MARKDOWN_LIMIT): string {
   const normalized = sanitizeRichMarkdown(
@@ -80,21 +50,11 @@ function fitAndCloseRichMarkdown(value: string, limit: number): string {
 
 function sanitizeRichMarkdown(value: string): string {
   const safeLinks = value.replace(
-    /\[([^\]\n]+)]\(([^\s)]+)\)/g,
-    (match, label: string, url: string) =>
-      isSafeLink(url) ? match : `${label} (${escapeRichMarkdownText(url)})`,
+    RICH_MARKDOWN_LINK_PATTERN,
+    (match, marker: string, label: string, url: string) =>
+      isSafeRichMarkdownDestination(url, marker === "!")
+        ? match
+        : `${label} (${escapeRichMarkdownText(url)})`,
   );
-  return safeLinks.replace(/<\/?([A-Za-z][\w-]*)(?:\s[^<>]*)?>/g, (tag, name: string) =>
-    RICH_HTML_TAGS.has(name.toLowerCase())
-      ? tag
-      : tag.replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
-  );
-}
-
-function isSafeLink(value: string): boolean {
-  try {
-    return SAFE_LINK_PROTOCOLS.has(new URL(value).protocol);
-  } catch {
-    return false;
-  }
+  return sanitizeRichHtmlTags(safeLinks);
 }

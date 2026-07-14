@@ -9,19 +9,18 @@ import {
 } from "./rich-markdown.js";
 import type { TelegramInlineButton } from "./types.js";
 
-export function renderCompletion(result: CanonicalTurnResult, title = "Codex task"): string {
+export function renderCompletion(result: CanonicalTurnResult): string {
   const icon = result.status === "completed" ? "✅" : result.status === "interrupted" ? "⏹" : "❌";
   const body = result.finalMessage.trim() || "No final agent message was returned.";
   const shortThread = result.threadId.slice(0, 8);
   const duration = formatDuration(result.durationMs);
+  const context =
+    `**Project:** ${richMarkdownInlineCode(projectLabel(result.cwd))} · ` +
+    `**Thread:** ${richMarkdownInlineCode(shortThread)}` +
+    `${duration ? ` · **Duration:** ${escapeRichMarkdownText(duration)}` : ""}`;
   return prepareRichMarkdown(
-    `# ${icon} ${escapeRichMarkdownText(title)}\n\n` +
-      `- **Status:** ${escapeRichMarkdownText(statusLabel(result.status))}\n` +
-      `- **Project:** ${richMarkdownInlineCode(projectLabel(result.cwd))}\n` +
-      `- **Thread:** ${richMarkdownInlineCode(shortThread)}` +
-      `${duration ? `\n- **Duration:** ${escapeRichMarkdownText(duration)}` : ""}\n\n` +
-      `---\n\n${body}\n\n---\n\n` +
-      `> ↩️ Reply to this message to continue the exact task.`,
+    `# ${icon} Task ${escapeRichMarkdownText(statusHeading(result.status))}\n\n` +
+      `${body}\n\n---\n\n${context}`,
   );
 }
 
@@ -32,14 +31,14 @@ export function renderStreaming(text: string, done: boolean): string {
 
 export function renderNotification(notification: OutboundNotification): string {
   const source =
-    notification.source.kind === "bound_task"
-      ? "↩️ Reply to this message to continue the exact task."
-      : "ℹ️ Notification only · replies do not continue a Codex task.";
+    notification.source.kind === "notification_only"
+      ? "\n\n> ℹ️ Notification only · replies do not continue a Codex task."
+      : "";
   return prepareRichMarkdown(
     `# 📬 ${escapeRichMarkdownText(notification.title)}\n\n` +
       `${notification.message.trim()}\n\n---\n\n` +
-      `**Project:** ${richMarkdownInlineCode(projectLabel(notification.cwd))}\n\n` +
-      `> ${source}`,
+      `**Project:** ${richMarkdownInlineCode(projectLabel(notification.cwd))}` +
+      source,
   );
 }
 
@@ -49,19 +48,17 @@ export function renderWatchedBlocked(snapshot: WatchedThreadSnapshot): string {
     snapshot.blockedGoal?.objective.trim() ||
     "The watched Codex task is blocked.";
   return prepareRichMarkdown(
-    `# ⚠️ Watched Codex task\n\n` +
-      `- **Status:** Blocked\n` +
-      `- **Project:** ${richMarkdownInlineCode(projectLabel(snapshot.cwd))}\n` +
-      `- **Thread:** ${richMarkdownInlineCode(snapshot.threadId.slice(0, 8))}\n\n` +
-      `---\n\n${body}\n\n---\n\n` +
-      `> ↩️ Reply to this message to continue the exact task.`,
+    `# ⚠️ Task blocked\n\n` +
+      `${body}\n\n---\n\n` +
+      `**Project:** ${richMarkdownInlineCode(projectLabel(snapshot.cwd))} · ` +
+      `**Thread:** ${richMarkdownInlineCode(snapshot.threadId.slice(0, 8))}`,
   );
 }
 
 export function taskActionKeyboard(threadId: string): readonly (readonly TelegramInlineButton[])[] {
   return [
     [
-      { text: "Continue", callbackData: `thread:${threadId}` },
+      { text: "Switch", callbackData: `thread:${threadId}` },
       { text: "Mute", callbackData: `mute:${threadId}` },
     ],
   ];
@@ -103,11 +100,11 @@ export function renderUserInputAnswered(
   );
 }
 
-function statusLabel(status: CanonicalTurnResult["status"]): string {
-  if (status === "completed") return "Completed";
-  if (status === "interrupted") return "Stopped";
-  if (status === "failed") return "Failed";
-  return "Running";
+function statusHeading(status: CanonicalTurnResult["status"]): string {
+  if (status === "completed") return "completed";
+  if (status === "interrupted") return "stopped";
+  if (status === "failed") return "failed";
+  return "running";
 }
 
 function projectLabel(cwd: string): string {

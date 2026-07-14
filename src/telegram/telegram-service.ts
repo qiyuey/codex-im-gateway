@@ -147,6 +147,17 @@ export class TelegramService {
         query.queryId,
         `Switched to and watching ${threadId.slice(0, 8)}.`,
       );
+      await this.api
+        .editTextMessage(
+          {
+            chatId: query.chatId,
+            messageId: query.messageId,
+            topicId: query.topicId,
+          },
+          `✅ Switched to and watching ${threadId.slice(0, 8)}.`,
+          [],
+        )
+        .catch(() => undefined);
     } catch {
       await this.api.answerCallbackQuery(query.queryId, "Thread is no longer available.");
     }
@@ -424,11 +435,14 @@ export class TelegramService {
       ? `Select a thread in ${label}:`
       : `No available threads in ${label}.`;
     const keyboard = threads.slice(0, 10).map((thread) => [threadButton(thread)]);
-    await this.api.sendTextMessage(
-      query.chatId,
+    await this.api.editTextMessage(
+      {
+        chatId: query.chatId,
+        messageId: query.messageId,
+        topicId: query.topicId,
+      },
       text,
-      query.topicId,
-      keyboard.length ? keyboard : undefined,
+      keyboard,
     );
   }
 

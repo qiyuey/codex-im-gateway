@@ -73,10 +73,15 @@ export class ThreadWatchMonitor {
         return;
       }
 
-      if (turn.status === "interrupted" && !turn.finalMessage.trim()) {
-        // Codex may expose an empty interruption while a task is being steered,
-        // restarted, or resumed. It carries no useful result and can later become
-        // a completed turn with the same ID, so neither deliver nor acknowledge it.
+      if (turn.status === "interrupted") {
+        // A second app-server can expose an active Desktop turn as interrupted,
+        // including commentary already emitted by that turn. A null duration means
+        // the state is not stable and the same ID may later become completed, so do
+        // not acknowledge it. Stable interruptions are intentionally silent but can
+        // be acknowledged to avoid reconsidering them on every poll.
+        if (turn.durationMs !== null && turn.durationMs !== undefined) {
+          this.state.acknowledgeWatchedState(current, turn.threadId, { turnId: turn.turnId });
+        }
         return;
       }
 
@@ -89,7 +94,7 @@ export class ThreadWatchMonitor {
   private async sendTurn(watch: ThreadWatchRecord, turn: CanonicalTurnResult): Promise<void> {
     const message = await this.api.sendRichMessage(
       Number(watch.chatId),
-      renderCompletion(turn, "Watched Codex task"),
+      renderCompletion(turn),
       watch.topicId,
       taskActionKeyboard(turn.threadId),
     );

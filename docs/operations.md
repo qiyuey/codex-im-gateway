@@ -31,7 +31,7 @@ checks the watched thread about every five seconds and sends only new terminal
 states. `/mute` removes the watch while keeping the selected thread; selecting a
 thread again re-enables it. `/detach` clears both selection and watch.
 
-Bound completion messages show Continue/Mute task actions. Explicit
+Bound completion messages show Switch/Mute task actions. Explicit
 `$telegram-delivery` messages have no trusted thread identity and are labeled
 **Notification only**. For turns started from Telegram, non-secret
 `request_user_input` questions appear as expiring one-time cards. Reply to the

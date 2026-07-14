@@ -19,10 +19,13 @@ Represent notification identity as a required discriminated source:
 - `notification_only` carries no task identity and must say that replies do not
   continue a Codex task.
 
-Bound Telegram messages render a compact task card with status, project, short
-thread identifier, duration when available, and Continue/Mute actions. The
-Telegram message is durably bound before users are told that replies can
-continue it.
+Bound Telegram messages render a compact task card with the outcome in the
+heading, the agent's final message immediately below it, and project, short
+thread identifier, and optional duration on one secondary context line.
+Switch/Mute actions remain attached to the card. The
+Telegram message is durably bound so direct replies route to the exact task.
+Switch selects and watches the task for subsequent non-reply messages; it
+does not start a new turn by itself.
 
 Enable app-server's experimental API and handle only
 `item/tool/requestUserInput`. A request is eligible for Telegram only when it

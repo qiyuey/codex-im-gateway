@@ -14,7 +14,7 @@ export class TelegramNotificationSender implements NotificationSender {
   ): Promise<{ readonly messageId: string }> {
     const keyboard =
       notification.source.kind === "bound_task"
-        ? [[{ text: "Continue", callbackData: `thread:${notification.source.codexThreadId}` }]]
+        ? [[{ text: "Switch", callbackData: `thread:${notification.source.codexThreadId}` }]]
         : undefined;
     const message = await this.api.sendRichMessage(
       this.chatId,

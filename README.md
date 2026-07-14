@@ -32,7 +32,7 @@ installation still runs from a source checkout.
 - A reply never silently falls back to an unrelated active thread.
 - Multiple tasks and workspaces remain isolated from one another.
 - Bound results render as task cards with status, project, duration, and
-  **Continue**/**Mute** actions; unbound results are visibly marked
+  **Switch**/**Mute** actions; unbound results are visibly marked
   **Notification only**.
 - When a Telegram-originated turn asks a non-secret `request_user_input`
   question, answer its one-time option card or reply directly to that card.
@@ -147,6 +147,16 @@ is stored by default in `~/.local/share/codex-im-gateway/gateway.sqlite`.
    Rich Markdown through `sendRichMessage`, preserving headings, lists, tables,
    quotes, and code blocks. Control prompts and errors use unparsed plain text.
 
+The Rich Markdown preparation layer follows the Telegram Bot API 10.1 Rich
+Message grammar. It preserves the complete official inline and block vocabulary,
+including in-document anchors and references, date-time and custom emoji
+entities, formulas, details, media figures, maps, collages, slideshows, and
+advanced table/list attributes. Embedded Rich HTML is validated per tag and
+attribute: inline links use an explicit protocol allowlist, media sources are
+limited to HTTP(S), and structured numeric/enumerated attributes are range
+checked before delivery. Unsupported tags, attributes, URL schemes, and named
+entities are emitted as escaped text instead of executable Rich HTML.
+
 Separately, selecting a thread from Telegram stores one persistent watch for
 that chat/topic. The daemon reads only that thread through the public app-server
 protocol and delivers new terminal states; selecting another thread replaces
@@ -155,7 +165,7 @@ the watch.
 The explicit notification is a one-way result delivery and is not automatically
 bound to a Codex thread, so its card is explicitly marked **Notification only**.
 Bound completion and watched-thread cards say that replies continue the exact
-task and provide Continue/Mute actions. Telegram commands can still select and
+task and provide Switch/Mute actions. Telegram commands can still select and
 resume allowed threads independently through `codex app-server`.
 
 Codex remains the source of truth for threads and turns. Internal Codex SQLite

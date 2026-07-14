@@ -167,10 +167,11 @@ describe("TelegramService", () => {
 
     await service.handleCallbackQuery(callbackQuery({ data: projectCallback, topicId: "9" }));
 
-    expect(api.sent[1]).toMatchObject({
+    expect(api.sent).toHaveLength(1);
+    expect(api.edits[0]).toMatchObject({
+      ref: { chatId: 42, messageId: "100", topicId: "9" },
       content: expect.stringContaining("Select a thread in"),
       format: "plain_text",
-      topicId: "9",
       inlineKeyboard: [[{ text: "abcdef12 · Example", callbackData: "thread:abcdef12-full" }]],
     });
 
@@ -183,6 +184,12 @@ describe("TelegramService", () => {
     expect(api.callbackAnswers.at(-1)).toEqual({
       queryId: "callback-1",
       text: "Switched to and watching abcdef12.",
+    });
+    expect(api.edits[1]).toMatchObject({
+      ref: { chatId: 42, messageId: "100", topicId: "9" },
+      content: "✅ Switched to and watching abcdef12.",
+      format: "plain_text",
+      inlineKeyboard: [],
     });
     expect(state.getThreadWatch("telegram", "42", "9")?.codexThreadId).toBe("abcdef12-full");
   });
@@ -202,7 +209,8 @@ describe("TelegramService", () => {
 
     await service.handleCallbackQuery(callbackQuery({ data: "project:none" }));
 
-    expect(api.sent[1]).toMatchObject({
+    expect(api.sent).toHaveLength(1);
+    expect(api.edits[0]).toMatchObject({
       content: "Select a thread in Tasks:",
       format: "plain_text",
       inlineKeyboard: [
@@ -211,16 +219,17 @@ describe("TelegramService", () => {
     });
   });
 
-  it("shows an empty Tasks group without sending an invalid empty keyboard", async () => {
+  it("shows an empty Tasks group and removes the project keyboard", async () => {
     await mkdir(join(directory, ".git"));
 
     await service.handleCallbackQuery(callbackQuery({ data: "project:none" }));
 
-    expect(api.sent[0]).toMatchObject({
+    expect(api.sent).toHaveLength(0);
+    expect(api.edits[0]).toMatchObject({
       content: "No available threads in Tasks.",
       format: "plain_text",
+      inlineKeyboard: [],
     });
-    expect(api.sent[0]?.inlineKeyboard).toBeUndefined();
   });
 
   it("shows projects from every configured allowed workspace", async () => {
@@ -308,9 +317,9 @@ describe("TelegramService", () => {
       answers: { choice: { answers: ["Safe"] } },
     });
     expect(api.edits.some((edit) => edit.content.includes("Input sent to Codex"))).toBe(true);
-    expect(api.edits.at(-1)?.content).toContain("Reply to this message to continue the exact task");
+    expect(api.edits.at(-1)?.content).not.toContain("Reply to continue");
     expect(api.edits.at(-1)?.inlineKeyboard?.[0]?.map((button) => button.text)).toEqual([
-      "Continue",
+      "Switch",
       "Mute",
     ]);
 

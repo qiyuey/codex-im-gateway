@@ -19,13 +19,16 @@ blocked-goal revision as a baseline. The daemon polls only persisted watches
 through the public app-server `thread/read` and `thread/goal/get` methods, with a
 five-second minimum interval.
 
-Deliver one message for a new completed, failed, or non-empty interrupted turn,
-or a newly blocked thread goal. Suppress empty interrupted turns without
-acknowledging them because Codex can expose that state temporarily while a turn
-is steered or resumed under the same ID. Recheck the workspace allowlist before
-delivery and bind the Telegram message to the watched thread so replies continue
-it. Telegram-originated turns retain debounced incremental edits and acknowledge
-their final turn in the watch state to prevent duplicate delivery.
+Deliver one message for a new completed or failed turn, or a newly blocked
+thread goal. Watched interrupted turns are silent. Codex can expose an active
+Desktop turn as interrupted through a second app-server, even after commentary
+has been emitted; these transient views have no duration and can later become a
+completed turn with the same ID, so they are not acknowledged. Stable
+interruptions are acknowledged without delivery to avoid repeated polling work.
+Recheck the workspace allowlist before delivery and bind the Telegram message
+to the watched thread so replies continue it. Telegram-originated turns retain
+debounced incremental edits and acknowledge their final turn in the watch state
+to prevent duplicate delivery.
 
 `/mute` removes only the watch. `/detach` removes both active routing and the
 watch. Selecting another thread replaces the prior watch.
