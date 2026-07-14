@@ -37,3 +37,33 @@ export interface EventCounts {
   readonly delivered: number;
   readonly deadLetter: number;
 }
+
+export type NotificationSource =
+  | { readonly kind: "notification_only" }
+  | {
+      readonly kind: "bound_task";
+      readonly codexThreadId: string;
+      readonly codexTurnId: string;
+    };
+
+export interface EnqueueNotificationInput {
+  readonly idempotencyKey: string;
+  readonly channel: "telegram";
+  readonly cwd: string;
+  readonly title: string;
+  readonly message: string;
+  readonly source: NotificationSource;
+}
+
+export interface OutboundNotification extends EnqueueNotificationInput {
+  readonly id: string;
+  readonly state: EventState;
+  readonly attemptCount: number;
+  readonly nextAttemptAt: number;
+  readonly leaseExpiresAt: number | null;
+  readonly leaseToken: string | null;
+  readonly platformMessageId: string | null;
+  readonly lastError: string | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}

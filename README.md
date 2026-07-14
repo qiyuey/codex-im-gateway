@@ -1,7 +1,7 @@
 # Codex IM Gateway
 
-> Keep an eye on Codex Desktop from Telegram, get notified when a turn finishes,
-> and continue the exact same conversation from your phone.
+> Deliver selected Codex task results to Telegram, and continue allowed
+> conversations from your phone.
 
 [![CI](https://github.com/qiyuey/codex-im-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/qiyuey/codex-im-gateway/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-26%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
@@ -17,25 +17,32 @@ installation still runs from a source checkout.
 
 ## ✨ Why Codex IM Gateway
 
-### Follow Desktop tasks from anywhere
+### Deliver selected task results
 
-- Receive a Telegram notification when a Codex Desktop or Scheduled turn
-  completes, fails, or becomes blocked.
-- Browse recent Codex threads from allowed workspaces with `/threads`.
-- Switch to a thread with `/use` and continue it without opening the desktop app.
+- Explicitly opt selected Codex Desktop or Scheduled tasks into Telegram delivery
+  with the bundled `$telegram-delivery` skill.
+- Ordinary tasks and scheduled tasks are not delivered unless their prompt asks
+  for this capability or you explicitly watch their thread from Telegram.
+- Browse recent Codex projects and their threads from allowed workspaces with `/threads`.
+- Pick a project, then switch threads by tapping its button (or with `/use`) without opening the desktop app.
 
 ### Resume the right conversation
 
 - Replies are routed through a durable Telegram-message-to-Codex-thread binding.
 - A reply never silently falls back to an unrelated active thread.
 - Multiple tasks and workspaces remain isolated from one another.
+- Bound results render as task cards with status, project, duration, and
+  **Continue**/**Mute** actions; unbound results are visibly marked
+  **Notification only**.
+- When a Telegram-originated turn asks a non-secret `request_user_input`
+  question, answer its one-time option card or reply directly to that card.
 
 ### Local-first and durable
 
 - The daemon opens no public listener; Telegram uses long polling.
-- A local SQLite inbox provides retryable, idempotent completion delivery.
-- The bundled `Stop` hook only writes a local event and never performs network
-  delivery inline.
+- A local SQLite inbox provides retryable, idempotent notification delivery.
+- The bundled MCP tool only writes a local notification and never performs
+  Telegram network delivery inline.
 - Private-chat allowlists, workspace allowlists, and a persistent kill switch
   limit remote execution.
 
@@ -69,10 +76,9 @@ Edit `.env` locally and set:
 Never commit `.env`. Multiple workspace roots use the operating system path
 delimiter (`:` on macOS/Linux and `;` on Windows).
 
-Install the checkout as a local Codex plugin, then review and trust its bundled
-`Stop` hook once in Codex. Start a new Codex task so the hook, skill, and MCP
-server are loaded. See the [operations guide](docs/operations.md) for the full
-deployment workflow.
+Install the checkout as a local Codex plugin, then start a new Codex task so its
+skills and MCP server are loaded. See the [operations guide](docs/operations.md)
+for the full deployment workflow.
 
 Start the foreground daemon:
 
@@ -84,16 +90,36 @@ pnpm start
 
 | Command | Action |
 | --- | --- |
-| `/threads` | List recent threads in allowed workspaces |
+| `/threads` | Choose a project, then choose one of its recent threads |
 | `/use <id-prefix>` | Select one unambiguous thread |
 | `/current` | Show the selected thread |
 | `/new` | Create a thread in the first allowed workspace |
+| `/mute` | Stop terminal-state notifications for the selected thread |
 | `/detach` | Clear the current context binding |
 | `/stop` | Interrupt the active turn and cancel queued follow-ups |
 
 Plain messages use the active thread. Replies always use the binding of the
 replied-to Telegram message. The daemon registers these commands in Telegram's
-menu at startup.
+menu at startup. `/threads` first shows projects plus a **Tasks** group,
+then shows up to ten recent threads for the selected group. Projects use the
+nearest Git root inside the workspace allowlist, matching Codex's default
+project-root detection; allowed threads without one appear under **Tasks**.
+Tapping a thread selects it for the current chat or topic after its workspace is
+checked again, and watches that thread for new terminal states. Switching threads
+moves the watch; `/mute` stops notifications without changing the selected
+thread, while `/detach` clears both selection and watch.
+
+Watched Desktop turns are checked about every five seconds. The gateway sends
+one final Telegram message when a new turn completes, fails, is interrupted
+with a useful result, or when the thread goal becomes blocked. Empty interruption
+states are ignored because Codex can expose them temporarily while steering or
+resuming a task. It does not stream Desktop reasoning, commands, tool calls, or
+partial output. Prompts started from Telegram continue
+to update one placeholder message incrementally, finish as a bound task card,
+and are marked handled so the watcher does not send a duplicate final
+notification. If such a turn requests structured user input, the gateway sends
+an expiring one-time question card. Secret input and permission approvals are
+not accepted through Telegram.
 
 ## 🧰 Operations
 
@@ -102,6 +128,8 @@ node dist/cli.js health
 node dist/cli.js app-server-health
 node dist/cli.js events --state queued
 node dist/cli.js events --state dead_letter
+node dist/cli.js notifications --state queued
+node dist/cli.js notifications --state dead_letter
 node dist/cli.js recover
 node dist/cli.js disable
 node dist/cli.js enable
@@ -112,10 +140,23 @@ is stored by default in `~/.local/share/codex-im-gateway/gateway.sqlite`.
 
 ## 🏗️ How it works
 
-1. Codex invokes the plugin's turn-scoped `Stop` hook.
-2. The hook durably enqueues a local completion event.
-3. The daemon delivers the result to Telegram and stores the message binding.
-4. A Telegram reply resumes the bound Codex thread through `codex app-server`.
+1. An explicitly opted-in prompt invokes `$telegram-delivery`.
+2. The skill makes `telegram_deliver` the final workflow action.
+3. The MCP tool durably enqueues the completed result in local SQLite.
+4. The daemon validates the workspace and delivers the result with Telegram
+   Rich Markdown through `sendRichMessage`, preserving headings, lists, tables,
+   quotes, and code blocks. Control prompts and errors use unparsed plain text.
+
+Separately, selecting a thread from Telegram stores one persistent watch for
+that chat/topic. The daemon reads only that thread through the public app-server
+protocol and delivers new terminal states; selecting another thread replaces
+the watch.
+
+The explicit notification is a one-way result delivery and is not automatically
+bound to a Codex thread, so its card is explicitly marked **Notification only**.
+Bound completion and watched-thread cards say that replies continue the exact
+task and provide Continue/Mute actions. Telegram commands can still select and
+resume allowed threads independently through `codex app-server`.
 
 Codex remains the source of truth for threads and turns. Internal Codex SQLite
 files and transcript formats are not treated as APIs.
@@ -136,8 +177,16 @@ intentionally with `pnpm protocol:generate` when upgrading the protocol.
 ## ❓ FAQ
 
 **Does it stream live token-by-token progress to Telegram?**  
-Not yet. The first release lists threads, sends turn-completion notifications,
-and lets you continue the exact conversation.
+Telegram-originated turns use debounced edits to one message, not one message per
+token. Desktop turns are not streamed; watched threads send only terminal-state
+notifications.
+
+**Can I answer Codex questions from Telegram?**
+For turns started from Telegram, non-secret `request_user_input` questions are
+shown as one-time cards. Choose an option or reply to the exact card with text.
+The request expires when its app-server request resolves, its turn ends, its TTL
+passes, or the daemon restarts. Command, file, and permission approvals are not
+enabled.
 
 **Can another Telegram user control my Codex tasks?**  
 Not with the intended configuration. The adapter accepts only the configured
@@ -154,6 +203,9 @@ state.
 - [Operations](docs/operations.md)
 - [Threat model](docs/threat-model.md)
 - [Plugin packaging ADR](docs/adr/0001-codex-plugin-packaging.md)
+- [Explicit task delivery ADR](docs/adr/0002-explicit-task-delivery.md)
+- [Watched-thread delivery ADR](docs/adr/0003-watched-thread-delivery.md)
+- [Task cards and user-input ADR](docs/adr/0004-task-cards-and-user-input.md)
 - [Security policy](SECURITY.md)
 
 ## 📞 Support & feedback

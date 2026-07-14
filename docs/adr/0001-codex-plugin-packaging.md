@@ -1,6 +1,6 @@
 # ADR 0001: Package the gateway as a Codex plugin
 
-- Status: accepted
+- Status: superseded by ADR 0002 for outbound task-result production
 - Date: 2026-07-14
 
 ## Context

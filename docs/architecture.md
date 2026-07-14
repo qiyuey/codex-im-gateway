@@ -15,48 +15,59 @@ Codex operation starts. Ambiguity is an error.
 An active-thread pointer is only a convenience. The durable binding on a replied
 message is authoritative.
 
+Outbound messages have a required identity kind. `bound_task` includes an exact
+thread/turn pair and may promise reply-to-continue; `notification_only` contains
+no source identity and must not imply that a reply resumes Codex. Identity is
+never inferred from cwd, title, recency, or the active-thread pointer.
+
 ## Components
 
 ### Codex plugin package
 
-The repository is the plugin root. The plugin bundles three Codex-facing
+The repository is the plugin root. The plugin bundles two Codex-facing
 surfaces while keeping the long-running gateway daemon independent:
 
 ```text
 Codex plugin
-├── Stop hook ────────> plugin data / SQLite inbox
-├── Gateway skill ───> safe operating instructions
-└── MCP server ──────> health, inspection, explicit fallback enqueue
+├── Skills ──────────> explicit workflow and safe operating instructions
+└── MCP server ──────> health, inspection, durable explicit enqueue
                               |
                               v
                        gateway daemon
+                       ├── notification dispatcher
+                       ├── watched-thread monitor
                        ├── app-server client
                        └── Telegram adapter
 ```
 
-Codex supplies `PLUGIN_ROOT` for immutable installed files and `PLUGIN_DATA` for
-writable state. The hook and MCP server never write to the installed plugin
-cache. Long-lived Telegram polling does not run inside the hook or MCP stdio
-process.
+The MCP server writes only to the gateway's private data directory, never to the
+installed plugin cache. Long-lived Telegram polling does not run inside the MCP
+stdio process.
 
-### Event producer
+### Explicit notification producer
 
-A trusted Codex hook or plugin emits a small local completion event. It is
-isolated from network delivery so Codex completion is not coupled to an IM
-platform's availability.
+The `$telegram-delivery` skill defines an opt-in workflow contract. After the
+task and its verification finish, Codex calls `telegram_deliver` once with a
+self-contained title, result message, and absolute workspace path. The MCP tool
+only inserts a local notification; it does not call Telegram.
 
-The bundled `Stop` hook is the primary producer for ordinary Desktop turns and
-Scheduled turns. It reads the documented JSON hook envelope from stdin, uses
-`session_id:turn_id` as its idempotency key, and emits no stdout on success. The
-hook explicitly uses the gateway's shared user data directory so the external
-daemon observes the same durable inbox as the installed plugin. Any producer
-failure is reduced to a generic stderr message and a successful hook exit so it
-cannot fail the Codex turn.
+The result message contract is Rich Markdown. Final task results, watched Codex
+turns, and streamed/final Codex content use Telegram Rich Messages, preserving
+headings, lists, tables, links, quotes, and code. Control prompts, command
+feedback, and errors use unparsed plain text. Normal business paths do not use
+Telegram HTML or MarkdownV2.
+
+This boundary is intentionally explicit. A lifecycle hook is not used to infer
+delivery intent, so ordinary Desktop turns and Scheduled turns remain silent
+unless the user separately watches their thread from Telegram.
+When a scheduler provides a stable run identifier, the caller can supply it as
+a dedupe key; otherwise the MCP server assigns a unique enqueue identifier.
 
 ### Event store
 
-SQLite stores completion events, delivery attempts, message bindings, active
-context, and user-facing thread metadata. Codex retains ownership of thread
+SQLite stores explicit outbound notifications, legacy completion events,
+delivery attempts, message bindings, active context, one watched thread per
+chat/topic, and user-facing thread metadata. Codex retains ownership of thread
 content.
 
 The implementation uses Node 26's built-in synchronous SQLite API. Migrations
@@ -78,6 +89,22 @@ missing turns are errors rather than fallback candidates. Follow-ups resume the
 thread, force a workspace-write sandbox rooted at its allowed workspace, start a
 turn, and consume typed delta/completion notifications.
 
+For turns started through this connection, the client also accepts the
+experimental `item/tool/requestUserInput` server request. The Telegram bridge
+keeps the original JSON-RPC request on the same connection, presents only
+non-secret questions, and sends the typed answer response after a one-time
+callback or exact message reply. Other server-initiated approvals remain
+unsupported.
+
+The watched-thread monitor polls only persisted watches through `thread/read`
+and `thread/goal/get`, with a five-second minimum interval. Selection records the
+latest terminal turn and blocked-goal revision as a baseline, so historical
+results are not replayed. A new completed, failed, non-empty interrupted, or
+goal-blocked state is delivered once and bound back to its thread. Empty
+interruptions are neither delivered nor acknowledged, allowing a resumed turn
+with the same ID to deliver its eventual result. Workspace authorization is
+rechecked before each delivery.
+
 ### Router
 
 The router applies reply, topic, explicit selection, and active-context routing
@@ -93,6 +120,9 @@ tokens, and message identifiers do not leak into the Codex service.
 The Telegram adapter uses grammY long polling. The service authenticates the
 private user/chat before routing, rejects forwarded messages, and schedules
 different threads concurrently while serializing each individual thread.
+Input callbacks additionally bind an opaque in-memory token to the exact chat,
+topic, Telegram message, Codex thread/turn, request, and current question. They
+expire on TTL, request resolution, turn completion, or process restart.
 
 ### Local kill switch
 
@@ -124,21 +154,25 @@ Authorization of a user does not imply permission to widen the Codex sandbox.
 
 ## Important failure behavior
 
-- Delivery failure leaves an event retryable.
+- Delivery failure leaves a notification or completion event retryable.
+- Explicit notification delivery rejects workspaces outside the configured
+  allowlist without sending content.
 - Unknown reply bindings produce an error and do not use the active thread.
+- Notification-only messages are not stored as reply bindings.
+- Secret input requests and unsupported app-server approvals fail closed.
 - Missing Codex threads remain visible as unavailable historical notifications.
 - Busy threads queue follow-ups unless the user explicitly chooses steering.
 - Adapter shutdown stops accepting new inbound work before Codex connections are
   terminated.
-- Duplicate completion events reuse the existing delivery record.
+- Duplicate explicit notification dedupe keys reuse the existing queue record.
 
-## Planned decision records
+## Decision records
 
-Implementation should add ADRs for:
+Implemented decisions:
 
-1. completion producer and Scheduled hook compatibility;
-2. app-server transport and lifecycle;
-3. SQLite library and migration strategy;
-4. thread concurrency and steering behavior;
-5. adapter API stability;
-6. artifact containment and file-opening policy.
+1. plugin packaging and process separation;
+2. explicit Skill plus MCP task-result delivery.
+3. single watched-thread terminal delivery per Telegram chat/topic.
+
+Future ADR candidates include app-server lifecycle, SQLite migration strategy,
+thread concurrency, adapter API stability, and artifact containment.

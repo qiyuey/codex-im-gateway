@@ -4,13 +4,13 @@ import { AppServerClient } from "./codex/app-server-client.js";
 import { resolveDatabasePath } from "./config/paths.js";
 import { type EventState, eventStates } from "./core/types.js";
 import { LocalKillSwitch } from "./security/kill-switch.js";
-import { openEventStore } from "./storage/open-store.js";
+import { openEventStore, openNotificationStore } from "./storage/open-store.js";
 
 const command = process.argv[2] ?? "help";
 
 if (command === "help" || command === "--help" || command === "-h") {
   process.stdout.write(
-    `codex-im-gateway <command>\n\nCommands:\n  health\n  app-server-health\n  disable\n  enable\n  events [--state <state>] [--limit <n>]\n  recover\n`,
+    `codex-im-gateway <command>\n\nCommands:\n  health\n  app-server-health\n  disable\n  enable\n  events [--state <state>] [--limit <n>]\n  notifications [--state <state>] [--limit <n>]\n  recover\n`,
   );
   process.exit(0);
 }
@@ -37,12 +37,18 @@ if (command === "app-server-health") {
   const killSwitch = new LocalKillSwitch();
   try {
     if (command === "health") {
-      printJson({
-        status: "ok",
-        inboundEnabled: killSwitch.isInboundEnabled(),
-        databasePath: resolveDatabasePath(),
-        ...context.store.counts(),
-      });
+      const notificationContext = openNotificationStore();
+      try {
+        printJson({
+          status: "ok",
+          inboundEnabled: killSwitch.isInboundEnabled(),
+          databasePath: resolveDatabasePath(),
+          ...context.store.counts(),
+          notifications: notificationContext.store.counts(),
+        });
+      } finally {
+        notificationContext.database.close();
+      }
     } else if (command === "disable") {
       killSwitch.disable();
       printJson({ inboundEnabled: false });
@@ -57,8 +63,29 @@ if (command === "app-server-health") {
       const state = values.state ? parseState(values.state) : undefined;
       const limit = Number.parseInt(values.limit, 10);
       printJson(context.store.list(state, limit));
+    } else if (command === "notifications") {
+      const { values } = parseArgs({
+        args: process.argv.slice(3),
+        options: { limit: { type: "string", default: "20" }, state: { type: "string" } },
+      });
+      const state = values.state ? parseState(values.state) : undefined;
+      const limit = Number.parseInt(values.limit, 10);
+      const notificationContext = openNotificationStore();
+      try {
+        printJson(notificationContext.store.list(state, limit));
+      } finally {
+        notificationContext.database.close();
+      }
     } else if (command === "recover") {
-      printJson({ recovered: context.store.recoverExpired() });
+      const notificationContext = openNotificationStore();
+      try {
+        printJson({
+          recovered: context.store.recoverExpired(),
+          notificationsRecovered: notificationContext.store.recoverExpired(),
+        });
+      } finally {
+        notificationContext.database.close();
+      }
     } else {
       throw new Error(`Unknown command: ${command}`);
     }

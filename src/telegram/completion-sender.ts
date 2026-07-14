@@ -1,6 +1,6 @@
 import type { CanonicalTurnResult } from "../codex/app-server-client.js";
 import type { CompletionSender } from "../dispatcher/dispatcher.js";
-import { renderCompletion } from "./render.js";
+import { renderCompletion, taskActionKeyboard } from "./render.js";
 import type { TelegramApi } from "./types.js";
 
 export class TelegramCompletionSender implements CompletionSender {
@@ -13,7 +13,12 @@ export class TelegramCompletionSender implements CompletionSender {
     result: CanonicalTurnResult,
     _eventId: string,
   ): Promise<{ readonly messageId: string }> {
-    const message = await this.api.sendMessage(this.chatId, renderCompletion(result));
+    const message = await this.api.sendRichMessage(
+      this.chatId,
+      renderCompletion(result),
+      null,
+      taskActionKeyboard(result.threadId),
+    );
     return { messageId: message.messageId };
   }
 }

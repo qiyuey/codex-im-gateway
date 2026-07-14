@@ -4,7 +4,7 @@
   "description": "Local-first Codex plugin for durable IM notifications and thread replies",
   "type": "module",
   "private": true,
-  "packageManager": "pnpm@11.12.0",
+  "packageManager": "pnpm@11.13.0",
   "engines": {
     "node": ">=26.0.0",
     "pnpm": ">=11.0.0"

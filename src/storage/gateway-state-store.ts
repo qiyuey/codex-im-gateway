@@ -17,6 +17,23 @@ export interface DeliveryTarget {
   readonly topicId?: string | null;
 }
 
+export interface ThreadWatchRecord {
+  readonly channel: string;
+  readonly chatId: string;
+  readonly topicId: string | null;
+  readonly codexThreadId: string;
+  readonly lastDeliveredTurnId: string | null;
+  readonly lastDeliveredGoalUpdatedAt: number | null;
+  readonly updatedAt: number;
+}
+
+export interface ActiveThreadRecord {
+  readonly channel: string;
+  readonly chatId: string;
+  readonly topicId: string | null;
+  readonly codexThreadId: string;
+}
+
 interface BindingRow {
   channel: string;
   chat_id: string;
@@ -25,6 +42,23 @@ interface BindingRow {
   codex_turn_id: string;
   schedule_key: string | null;
   created_at: number;
+}
+
+interface WatchRow {
+  channel: string;
+  chat_id: string;
+  topic_id: string;
+  codex_thread_id: string;
+  last_delivered_turn_id: string | null;
+  last_delivered_goal_updated_at: number | null;
+  updated_at: number;
+}
+
+interface ActiveThreadRow {
+  channel: string;
+  chat_id: string;
+  topic_id: string;
+  active_codex_thread_id: string;
 }
 
 export class GatewayStateStore {
@@ -139,6 +173,100 @@ export class GatewayStateStore {
       .run(channel, chatId, normalizeTopic(topicId), threadId, now);
   }
 
+  selectAndWatchThread(
+    channel: string,
+    chatId: string,
+    topicId: string | null | undefined,
+    threadId: string,
+    baseline: {
+      readonly turnId?: string | null;
+      readonly blockedGoalUpdatedAt?: number | null;
+    } = {},
+    now = Date.now(),
+  ): void {
+    this.database.transaction(() => {
+      this.setActiveThread(channel, chatId, topicId, threadId, now);
+      this.database.connection
+        .prepare(`
+          INSERT INTO thread_watches (
+            channel, chat_id, topic_id, codex_thread_id,
+            last_delivered_turn_id, last_delivered_goal_updated_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(channel, chat_id, topic_id) DO UPDATE SET
+            codex_thread_id = excluded.codex_thread_id,
+            last_delivered_turn_id = excluded.last_delivered_turn_id,
+            last_delivered_goal_updated_at = excluded.last_delivered_goal_updated_at,
+            updated_at = excluded.updated_at
+        `)
+        .run(
+          channel,
+          chatId,
+          normalizeTopic(topicId),
+          threadId,
+          baseline.turnId ?? null,
+          baseline.blockedGoalUpdatedAt ?? null,
+          now,
+        );
+    });
+  }
+
+  getThreadWatch(
+    channel: string,
+    chatId: string,
+    topicId?: string | null,
+  ): ThreadWatchRecord | null {
+    const row = this.database.connection
+      .prepare(`
+        SELECT * FROM thread_watches
+        WHERE channel = ? AND chat_id = ? AND topic_id = ?
+      `)
+      .get(channel, chatId, normalizeTopic(topicId)) as WatchRow | undefined;
+    return row ? mapWatch(row) : null;
+  }
+
+  listThreadWatches(channel = "telegram"): readonly ThreadWatchRecord[] {
+    const rows = this.database.connection
+      .prepare("SELECT * FROM thread_watches WHERE channel = ? ORDER BY updated_at")
+      .all(channel) as unknown as WatchRow[];
+    return rows.map(mapWatch);
+  }
+
+  acknowledgeWatchedState(
+    target: DeliveryTarget,
+    threadId: string,
+    delivered: {
+      readonly turnId?: string | null;
+      readonly blockedGoalUpdatedAt?: number | null;
+    },
+    now = Date.now(),
+  ): boolean {
+    const result = this.database.connection
+      .prepare(`
+        UPDATE thread_watches
+        SET last_delivered_turn_id = COALESCE(?, last_delivered_turn_id),
+            last_delivered_goal_updated_at = COALESCE(?, last_delivered_goal_updated_at),
+            updated_at = ?
+        WHERE channel = ? AND chat_id = ? AND topic_id = ? AND codex_thread_id = ?
+      `)
+      .run(
+        delivered.turnId ?? null,
+        delivered.blockedGoalUpdatedAt ?? null,
+        now,
+        target.channel,
+        target.chatId,
+        normalizeTopic(target.topicId),
+        threadId,
+      );
+    return result.changes === 1;
+  }
+
+  clearThreadWatch(channel: string, chatId: string, topicId?: string | null): boolean {
+    const result = this.database.connection
+      .prepare("DELETE FROM thread_watches WHERE channel = ? AND chat_id = ? AND topic_id = ?")
+      .run(channel, chatId, normalizeTopic(topicId));
+    return result.changes === 1;
+  }
+
   getActiveThread(channel: string, chatId: string, topicId?: string | null): string | null {
     const row = this.database.connection
       .prepare(`
@@ -151,11 +279,26 @@ export class GatewayStateStore {
     return row?.active_codex_thread_id ?? null;
   }
 
+  listActiveThreads(channel = "telegram"): readonly ActiveThreadRecord[] {
+    const rows = this.database.connection
+      .prepare("SELECT * FROM context_state WHERE channel = ? ORDER BY updated_at")
+      .all(channel) as unknown as ActiveThreadRow[];
+    return rows.map((row) => ({
+      channel: row.channel,
+      chatId: row.chat_id,
+      topicId: row.topic_id || null,
+      codexThreadId: row.active_codex_thread_id,
+    }));
+  }
+
   detach(channel: string, chatId: string, topicId?: string | null): boolean {
-    const result = this.database.connection
-      .prepare("DELETE FROM context_state WHERE channel = ? AND chat_id = ? AND topic_id = ?")
-      .run(channel, chatId, normalizeTopic(topicId));
-    return result.changes === 1;
+    return this.database.transaction(() => {
+      const result = this.database.connection
+        .prepare("DELETE FROM context_state WHERE channel = ? AND chat_id = ? AND topic_id = ?")
+        .run(channel, chatId, normalizeTopic(topicId));
+      this.clearThreadWatch(channel, chatId, topicId);
+      return result.changes === 1;
+    });
   }
 
   listRecentBindings(channel: string, chatId: string, limit = 10): readonly MessageBindingRecord[] {
@@ -185,5 +328,17 @@ function mapBinding(row: BindingRow): MessageBindingRecord {
     codexTurnId: row.codex_turn_id,
     scheduleKey: row.schedule_key,
     createdAt: row.created_at,
+  };
+}
+
+function mapWatch(row: WatchRow): ThreadWatchRecord {
+  return {
+    channel: row.channel,
+    chatId: row.chat_id,
+    topicId: row.topic_id || null,
+    codexThreadId: row.codex_thread_id,
+    lastDeliveredTurnId: row.last_delivered_turn_id,
+    lastDeliveredGoalUpdatedAt: row.last_delivered_goal_updated_at,
+    updatedAt: row.updated_at,
   };
 }

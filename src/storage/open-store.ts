@@ -1,6 +1,7 @@
 import { resolveDatabasePath } from "../config/paths.js";
 import { GatewayDatabase } from "./database.js";
 import { CompletionEventStore } from "./event-store.js";
+import { OutboundNotificationStore } from "./notification-store.js";
 
 export function openEventStore(env: NodeJS.ProcessEnv = process.env): {
   readonly database: GatewayDatabase;
@@ -8,4 +9,12 @@ export function openEventStore(env: NodeJS.ProcessEnv = process.env): {
 } {
   const database = new GatewayDatabase(resolveDatabasePath(env));
   return { database, store: new CompletionEventStore(database) };
+}
+
+export function openNotificationStore(env: NodeJS.ProcessEnv = process.env): {
+  readonly database: GatewayDatabase;
+  readonly store: OutboundNotificationStore;
+} {
+  const database = new GatewayDatabase(resolveDatabasePath(env));
+  return { database, store: new OutboundNotificationStore(database) };
 }

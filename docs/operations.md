@@ -15,12 +15,28 @@ cp .env.example .env
 
 Edit `.env` locally. Never commit it. Set a Telegram BotFather token, the one
 allowed private user/chat ID, and absolute workspace roots. Install the built
-repository as a local Codex plugin through a trusted local marketplace, then
-review and trust the bundled `Stop` hook in Codex. Start a new Codex task after
-installing or refreshing the plugin so its hook, skill, and MCP server load.
-The bundled `Stop` hook applies to ordinary Codex Desktop turns as well as
-Scheduled turns. Review and trust the plugin hook once in a new Codex task;
-Codex skips untrusted command hooks.
+repository as a local Codex plugin through a trusted local marketplace. Start a
+new Codex task after installing or refreshing the plugin so its skills and MCP
+server load.
+
+Telegram delivery is explicit. A task prompt must invoke `$telegram-delivery`
+and require it as the final workflow step. The task workspace must be within
+`CODEX_IM_GATEWAY_ALLOWED_WORKSPACES`; otherwise the daemon moves the notification
+to dead letter without sending it. Ordinary tasks and Scheduled tasks do not
+produce notifications automatically unless their thread is selected and watched
+from Telegram.
+
+Selecting a thread with `/threads`, `/use`, or `/new` also watches it. The daemon
+checks the watched thread about every five seconds and sends only new terminal
+states. `/mute` removes the watch while keeping the selected thread; selecting a
+thread again re-enables it. `/detach` clears both selection and watch.
+
+Bound completion messages show Continue/Mute task actions. Explicit
+`$telegram-delivery` messages have no trusted thread identity and are labeled
+**Notification only**. For turns started from Telegram, non-secret
+`request_user_input` questions appear as expiring one-time cards. Reply to the
+exact card for a free-form answer. Restarting the daemon invalidates pending
+cards because their app-server JSON-RPC connection has ended.
 
 Run the foreground daemon with:
 
@@ -48,6 +64,8 @@ Inspect retry and dead-letter state without printing event payloads:
 ```bash
 node dist/cli.js events --state queued
 node dist/cli.js events --state dead_letter
+node dist/cli.js notifications --state queued
+node dist/cli.js notifications --state dead_letter
 node dist/cli.js recover
 ```
 

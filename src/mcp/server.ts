@@ -1,10 +1,12 @@
+import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { resolveDatabasePath } from "../config/paths.js";
 import { eventStates } from "../core/types.js";
 import { LocalKillSwitch } from "../security/kill-switch.js";
-import { openEventStore } from "../storage/open-store.js";
+import { openEventStore, openNotificationStore } from "../storage/open-store.js";
 
 const server = new McpServer({ name: "codex-im-gateway", version: "0.1.0" });
 
@@ -20,17 +22,29 @@ server.registerTool(
       queued: z.number(),
       status: z.literal("ok"),
       inboundEnabled: z.boolean(),
+      notifications: z.object({
+        deadLetter: z.number(),
+        delivered: z.number(),
+        leased: z.number(),
+        queued: z.number(),
+      }),
     }),
   },
   async () =>
-    withStore(({ store }) =>
-      success({
-        status: "ok" as const,
-        inboundEnabled: new LocalKillSwitch().isInboundEnabled(),
-        databasePath: resolveDatabasePath(),
-        ...store.counts(),
-      }),
-    ),
+    withStore(({ store }) => {
+      const notificationContext = openNotificationStore();
+      try {
+        return success({
+          status: "ok" as const,
+          inboundEnabled: new LocalKillSwitch().isInboundEnabled(),
+          databasePath: resolveDatabasePath(),
+          ...store.counts(),
+          notifications: notificationContext.store.counts(),
+        });
+      } finally {
+        notificationContext.database.close();
+      }
+    }),
 );
 
 server.registerTool(
@@ -69,6 +83,43 @@ server.registerTool(
         })),
       }),
     ),
+);
+
+server.registerTool(
+  "telegram_deliver",
+  {
+    description:
+      "Durably queue one explicit final task result for Telegram delivery. Use only when the user or scheduled-task contract explicitly requires Telegram delivery.",
+    inputSchema: z.object({
+      cwd: z.string().min(1).max(4096).describe("Absolute task workspace path"),
+      title: z.string().min(1).max(200),
+      message: z.string().min(1).max(12_000),
+      dedupeKey: z.string().min(1).max(256).optional(),
+    }),
+    outputSchema: z.object({
+      notificationId: z.string(),
+      state: z.string(),
+      duplicate: z.boolean(),
+    }),
+  },
+  async ({ cwd, title, message, dedupeKey }) => {
+    const context = openNotificationStore();
+    try {
+      const idempotencyKey = `explicit:${dedupeKey ?? randomUUID()}`;
+      const duplicate = context.store.findByIdempotencyKey(idempotencyKey) !== null;
+      const notification = context.store.enqueue({
+        idempotencyKey,
+        channel: "telegram",
+        cwd: resolve(cwd),
+        title,
+        message,
+        source: { kind: "notification_only" },
+      });
+      return success({ notificationId: notification.id, state: notification.state, duplicate });
+    } finally {
+      context.database.close();
+    }
+  },
 );
 
 server.registerTool(

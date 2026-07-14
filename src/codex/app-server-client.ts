@@ -2,7 +2,11 @@ import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { createInterface, type Interface } from "node:readline";
 import type { InitializeResponse } from "./protocol/InitializeResponse.js";
+import type { RequestId } from "./protocol/RequestId.js";
 import type { ServerNotification } from "./protocol/ServerNotification.js";
+import type { ServerRequest } from "./protocol/ServerRequest.js";
+import type { ThreadGoalGetParams } from "./protocol/v2/ThreadGoalGetParams.js";
+import type { ThreadGoalGetResponse } from "./protocol/v2/ThreadGoalGetResponse.js";
 import type { ThreadListParams } from "./protocol/v2/ThreadListParams.js";
 import type { ThreadListResponse } from "./protocol/v2/ThreadListResponse.js";
 import type { ThreadReadParams } from "./protocol/v2/ThreadReadParams.js";
@@ -11,6 +15,7 @@ import type { ThreadResumeParams } from "./protocol/v2/ThreadResumeParams.js";
 import type { ThreadResumeResponse } from "./protocol/v2/ThreadResumeResponse.js";
 import type { ThreadStartParams } from "./protocol/v2/ThreadStartParams.js";
 import type { ThreadStartResponse } from "./protocol/v2/ThreadStartResponse.js";
+import type { ToolRequestUserInputResponse } from "./protocol/v2/ToolRequestUserInputResponse.js";
 import type { Turn } from "./protocol/v2/Turn.js";
 import type { TurnInterruptParams } from "./protocol/v2/TurnInterruptParams.js";
 import type { TurnInterruptResponse } from "./protocol/v2/TurnInterruptResponse.js";
@@ -18,13 +23,13 @@ import type { TurnStartParams } from "./protocol/v2/TurnStartParams.js";
 import type { TurnStartResponse } from "./protocol/v2/TurnStartResponse.js";
 
 interface JsonRpcResponse {
-  readonly id: number;
+  readonly id: RequestId;
   readonly result?: unknown;
   readonly error?: { readonly code: number; readonly message: string; readonly data?: unknown };
 }
 
 interface JsonRpcRequest {
-  readonly id: number;
+  readonly id: RequestId;
   readonly method: string;
   readonly params?: unknown;
 }
@@ -53,6 +58,31 @@ export interface CanonicalTurnResult {
   readonly status: "completed" | "failed" | "interrupted" | "in_progress";
   readonly finalMessage: string;
   readonly cwd: string;
+  readonly durationMs?: number | null;
+}
+
+export interface WatchedThreadSnapshot {
+  readonly threadId: string;
+  readonly cwd: string;
+  readonly latestTurn: CanonicalTurnResult | null;
+  readonly latestTerminalTurn: CanonicalTurnResult | null;
+  readonly latestTerminalTurnId: string | null;
+  readonly blockedGoal: {
+    readonly objective: string;
+    readonly updatedAt: number;
+  } | null;
+}
+
+export type UserInputRequest = Extract<ServerRequest, { method: "item/tool/requestUserInput" }>;
+
+export interface ResolvedServerRequest {
+  readonly threadId: string;
+  readonly requestId: RequestId;
+}
+
+export interface CompletedTurnRef {
+  readonly threadId: string;
+  readonly turnId: string;
 }
 
 export class AppServerClient extends EventEmitter {
@@ -97,7 +127,7 @@ export class AppServerClient extends EventEmitter {
           title: "Codex IM Gateway",
           version: this.clientVersion,
         },
-        capabilities: null,
+        capabilities: { experimentalApi: true },
       });
       this.notify("initialized", {});
       return response;
@@ -125,6 +155,36 @@ export class AppServerClient extends EventEmitter {
       status,
       finalMessage,
       cwd: response.thread.cwd,
+      durationMs: turn.durationMs ?? null,
+    };
+  }
+
+  async readThreadSnapshot(threadId: string): Promise<WatchedThreadSnapshot> {
+    const threadParams: ThreadReadParams = { threadId, includeTurns: true };
+    const goalParams: ThreadGoalGetParams = { threadId };
+    const [threadResponse, goalResponse] = await Promise.all([
+      this.request<ThreadReadResponse>("thread/read", threadParams),
+      this.request<ThreadGoalGetResponse>("thread/goal/get", goalParams),
+    ]);
+    const latest = threadResponse.thread.turns.at(-1) ?? null;
+    const latestTerminal = threadResponse.thread.turns.findLast(
+      (turn) => turn.status !== "inProgress",
+    );
+    const goal = goalResponse.goal;
+    return {
+      threadId: threadResponse.thread.id,
+      cwd: threadResponse.thread.cwd,
+      latestTurn: latest
+        ? mapTurnResult(threadResponse.thread.id, latest, "", threadResponse.thread.cwd)
+        : null,
+      latestTerminalTurn: latestTerminal
+        ? mapTurnResult(threadResponse.thread.id, latestTerminal, "", threadResponse.thread.cwd)
+        : null,
+      latestTerminalTurnId: latestTerminal?.id ?? null,
+      blockedGoal:
+        goal?.status === "blocked"
+          ? { objective: goal.objective, updatedAt: goal.updatedAt }
+          : null,
     };
   }
 
@@ -225,6 +285,29 @@ export class AppServerClient extends EventEmitter {
     return true;
   }
 
+  onUserInputRequest(handler: (request: UserInputRequest) => void): () => void {
+    this.on("userInputRequest", handler);
+    return () => this.off("userInputRequest", handler);
+  }
+
+  onServerRequestResolved(handler: (request: ResolvedServerRequest) => void): () => void {
+    this.on("serverRequestResolved", handler);
+    return () => this.off("serverRequestResolved", handler);
+  }
+
+  onTurnCompleted(handler: (turn: CompletedTurnRef) => void): () => void {
+    this.on("turnCompleted", handler);
+    return () => this.off("turnCompleted", handler);
+  }
+
+  respondToUserInput(requestId: RequestId, response: ToolRequestUserInputResponse): void {
+    this.send({ id: requestId, result: response });
+  }
+
+  rejectUserInput(requestId: RequestId, message: string): void {
+    this.send({ id: requestId, error: { code: -32602, message } });
+  }
+
   request<TResult>(method: string, params: unknown): Promise<TResult> {
     const id = this.nextId++;
     return new Promise<TResult>((resolve, reject) => {
@@ -282,10 +365,10 @@ export class AppServerClient extends EventEmitter {
     }
 
     if ("id" in message && !("method" in message)) {
-      const pending = this.pending.get(message.id);
+      const pending = typeof message.id === "number" ? this.pending.get(message.id) : undefined;
       if (!pending) return;
       clearTimeout(pending.timer);
-      this.pending.delete(message.id);
+      this.pending.delete(message.id as number);
       if (message.error)
         pending.reject(
           new Error(`app-server error ${message.error.code}: ${message.error.message}`),
@@ -295,11 +378,24 @@ export class AppServerClient extends EventEmitter {
     }
 
     if ("id" in message && "method" in message) {
+      const request = message as ServerRequest;
+      if (request.method === "item/tool/requestUserInput") {
+        if (this.emit("userInputRequest", request)) return;
+      }
       this.send({ id: message.id, error: { code: -32601, message: "Method not supported" } });
       return;
     }
 
-    this.emit("notification", message as ServerNotification);
+    const notification = message as ServerNotification;
+    this.emit("notification", notification);
+    if (notification.method === "serverRequest/resolved") {
+      this.emit("serverRequestResolved", notification.params);
+    } else if (notification.method === "turn/completed") {
+      this.emit("turnCompleted", {
+        threadId: notification.params.threadId,
+        turnId: notification.params.turn.id,
+      } satisfies CompletedTurnRef);
+    }
   }
 
   private failAll(error: Error): void {
@@ -325,7 +421,8 @@ function mapTurnResult(
     threadId,
     turnId: turn.id,
     status: turn.status === "inProgress" ? "in_progress" : turn.status,
-    finalMessage: agentMessages.at(-1)?.text ?? streamedText,
+    finalMessage: agentMessages.at(-1)?.text ?? turn.error?.message ?? streamedText,
     cwd,
+    durationMs: turn.durationMs ?? null,
   };
 }

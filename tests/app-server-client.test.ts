@@ -24,6 +24,7 @@ describe("AppServerClient", () => {
       status: "completed",
       finalMessage: "final answer",
       cwd: "/workspace/example",
+      durationMs: null,
     });
   });
 
@@ -32,6 +33,30 @@ describe("AppServerClient", () => {
     await client.connect();
 
     await expect(client.request("unknown", {})).rejects.toThrow("app-server error -32601");
+  });
+
+  it("reads a watched-thread snapshot with a terminal baseline", async () => {
+    client = new AppServerClient({ command: process.execPath, args: [fakeServer] });
+    await client.connect();
+
+    const snapshot = await client.readThreadSnapshot("thread-1");
+
+    expect(snapshot).toMatchObject({
+      threadId: "thread-1",
+      cwd: "/workspace/example",
+      latestTerminalTurnId: "turn-1",
+      latestTurn: {
+        turnId: "turn-1",
+        status: "completed",
+        finalMessage: "final answer",
+      },
+      latestTerminalTurn: {
+        turnId: "turn-1",
+        status: "completed",
+        finalMessage: "final answer",
+      },
+      blockedGoal: null,
+    });
   });
 
   it("streams a follow-up turn and returns its canonical final message", async () => {
@@ -48,6 +73,7 @@ describe("AppServerClient", () => {
       status: "completed",
       finalMessage: "streamed final",
       cwd: "/workspace/example",
+      durationMs: null,
     });
   });
 
@@ -63,6 +89,29 @@ describe("AppServerClient", () => {
       turnId: "turn-stream",
       status: "completed",
       cwd: "/workspace/fresh",
+    });
+  });
+
+  it("round-trips an experimental request_user_input server request", async () => {
+    client = new AppServerClient({ command: process.execPath, args: [fakeServer] });
+    await client.connect();
+    const requests: string[] = [];
+    const unsubscribe = client.onUserInputRequest((request) => {
+      requests.push(request.params.questions[0]?.question ?? "");
+      client?.respondToUserInput(request.id, {
+        answers: { choice: { answers: ["Safe"] } },
+      });
+    });
+
+    const result = await client.runTurn("thread-1", "needs input");
+    unsubscribe();
+
+    expect(requests).toEqual(["Which path should Codex use?"]);
+    expect(result).toMatchObject({
+      threadId: "thread-1",
+      turnId: "turn-stream",
+      finalMessage: "selected Safe",
+      durationMs: 1250,
     });
   });
 });

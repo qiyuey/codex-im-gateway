@@ -39,9 +39,37 @@ describe("GatewayStateStore", () => {
   });
 
   it("normalizes null topic identifiers and detaches context", () => {
-    state.setActiveThread("telegram", "42", null, "thread");
+    state.selectAndWatchThread("telegram", "42", null, "thread", { turnId: "turn-1" });
     expect(state.getActiveThread("telegram", "42", undefined)).toBe("thread");
+    expect(state.getThreadWatch("telegram", "42")).toMatchObject({
+      codexThreadId: "thread",
+      lastDeliveredTurnId: "turn-1",
+    });
     expect(state.detach("telegram", "42", null)).toBe(true);
     expect(state.getActiveThread("telegram", "42")).toBeNull();
+    expect(state.getThreadWatch("telegram", "42")).toBeNull();
+  });
+
+  it("replaces one watched thread and acknowledges only the current watch", () => {
+    state.selectAndWatchThread("telegram", "42", null, "thread-1", { turnId: "turn-1" }, 1);
+    state.selectAndWatchThread("telegram", "42", null, "thread-2", { turnId: "turn-2" }, 2);
+
+    expect(state.listThreadWatches()).toHaveLength(1);
+    expect(state.getThreadWatch("telegram", "42")?.codexThreadId).toBe("thread-2");
+    expect(
+      state.acknowledgeWatchedState({ channel: "telegram", chatId: "42" }, "thread-1", {
+        turnId: "late-turn",
+      }),
+    ).toBe(false);
+    expect(
+      state.acknowledgeWatchedState({ channel: "telegram", chatId: "42" }, "thread-2", {
+        turnId: "turn-3",
+        blockedGoalUpdatedAt: 10,
+      }),
+    ).toBe(true);
+    expect(state.getThreadWatch("telegram", "42")).toMatchObject({
+      lastDeliveredTurnId: "turn-3",
+      lastDeliveredGoalUpdatedAt: 10,
+    });
   });
 });

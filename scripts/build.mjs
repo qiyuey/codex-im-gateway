@@ -12,7 +12,6 @@ await build({
   entryPoints: {
     cli: "src/cli.ts",
     daemon: "src/daemon.ts",
-    "hooks/stop": "src/hooks/stop.ts",
     "mcp/server": "src/mcp/server.ts",
   },
   format: "esm",
