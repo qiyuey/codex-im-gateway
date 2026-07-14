@@ -1,0 +1,25 @@
+{
+  "name": "codex-im-gateway",
+  "version": "0.1.0+codex.20260714092108",
+  "description": "Deliver Codex task results to IM platforms and continue their exact threads.",
+  "author": {
+    "name": "Codex IM Gateway contributors"
+  },
+  "license": "MIT",
+  "keywords": ["codex", "telegram", "notifications", "threads"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codex IM Gateway",
+    "shortDescription": "Send Codex results to IM and route replies back.",
+    "longDescription": "A local-first gateway that durably delivers Codex task results to instant messaging platforms and resumes the exact originating thread when you reply.",
+    "developerName": "Codex IM Gateway contributors",
+    "category": "Productivity",
+    "capabilities": ["Notifications", "Interactive", "Local-first"],
+    "defaultPrompt": [
+      "Check the Codex IM Gateway health.",
+      "Help me configure Codex IM Gateway.",
+      "Show pending Codex completion events."
+    ]
+  }
+}

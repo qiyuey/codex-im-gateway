@@ -1,0 +1,34 @@
+import { delimiter, resolve } from "node:path";
+import { z } from "zod";
+
+const environmentSchema = z.object({
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  TELEGRAM_ALLOWED_USER_ID: z.coerce.number().int(),
+  TELEGRAM_ALLOWED_CHAT_ID: z.coerce.number().int(),
+  CODEX_IM_GATEWAY_ALLOWED_WORKSPACES: z.string().min(1),
+  CODEX_IM_GATEWAY_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(100).default(1_000),
+});
+
+export interface RuntimeConfig {
+  readonly telegramBotToken: string;
+  readonly telegramAllowedUserId: number;
+  readonly telegramAllowedChatId: number;
+  readonly allowedWorkspaces: readonly string[];
+  readonly dispatchIntervalMs: number;
+}
+
+export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
+  const parsed = environmentSchema.parse(env);
+  const allowedWorkspaces = parsed.CODEX_IM_GATEWAY_ALLOWED_WORKSPACES.split(delimiter)
+    .map((path) => path.trim())
+    .filter(Boolean)
+    .map((path) => resolve(path));
+  if (allowedWorkspaces.length === 0) throw new Error("At least one workspace must be allowed");
+  return {
+    telegramBotToken: parsed.TELEGRAM_BOT_TOKEN,
+    telegramAllowedUserId: parsed.TELEGRAM_ALLOWED_USER_ID,
+    telegramAllowedChatId: parsed.TELEGRAM_ALLOWED_CHAT_ID,
+    allowedWorkspaces,
+    dispatchIntervalMs: parsed.CODEX_IM_GATEWAY_DISPATCH_INTERVAL_MS,
+  };
+}

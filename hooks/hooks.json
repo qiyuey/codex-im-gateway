@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CODEX_IM_GATEWAY_DATA_DIR=\"$HOME/.local/share/codex-im-gateway\" node \"$PLUGIN_ROOT/dist/hooks/stop.js\"",
+            "commandWindows": "set \"CODEX_IM_GATEWAY_DATA_DIR=%USERPROFILE%\\.local\\share\\codex-im-gateway\" && node \"%PLUGIN_ROOT%\\dist\\hooks\\stop.js\"",
+            "timeout": 5,
+            "statusMessage": "Queueing completion notification"
+          }
+        ]
+      }
+    ]
+  }
+}

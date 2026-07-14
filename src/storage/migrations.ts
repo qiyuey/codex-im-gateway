@@ -1,0 +1,81 @@
+export interface Migration {
+  readonly version: number;
+  readonly name: string;
+  readonly sql: string;
+}
+
+export const migrations: readonly Migration[] = [
+  {
+    version: 1,
+    name: "initial_state",
+    sql: `
+      CREATE TABLE completion_events (
+        id TEXT PRIMARY KEY,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        codex_thread_id TEXT NOT NULL,
+        codex_turn_id TEXT NOT NULL,
+        cwd TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (event_type IN ('completed', 'failed', 'blocked')),
+        payload_json TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('queued', 'leased', 'delivered', 'dead_letter')),
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+        next_attempt_at INTEGER NOT NULL,
+        lease_expires_at INTEGER,
+        lease_token TEXT,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        CHECK ((state = 'leased') = (lease_expires_at IS NOT NULL AND lease_token IS NOT NULL))
+      ) STRICT;
+
+      CREATE INDEX completion_events_ready_idx
+        ON completion_events (state, next_attempt_at, created_at);
+      CREATE INDEX completion_events_lease_idx
+        ON completion_events (state, lease_expires_at);
+
+      CREATE TABLE deliveries (
+        id TEXT PRIMARY KEY,
+        completion_event_id TEXT NOT NULL REFERENCES completion_events(id) ON DELETE CASCADE,
+        channel TEXT NOT NULL,
+        chat_id TEXT NOT NULL,
+        topic_id TEXT NOT NULL DEFAULT '',
+        message_id TEXT,
+        delivery_state TEXT NOT NULL CHECK (delivery_state IN ('pending', 'sent', 'failed')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (completion_event_id, channel, chat_id, topic_id)
+      ) STRICT;
+
+      CREATE TABLE message_bindings (
+        channel TEXT NOT NULL,
+        chat_id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        codex_thread_id TEXT NOT NULL,
+        codex_turn_id TEXT NOT NULL,
+        schedule_key TEXT,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (channel, chat_id, message_id)
+      ) STRICT;
+
+      CREATE TABLE context_state (
+        channel TEXT NOT NULL,
+        chat_id TEXT NOT NULL,
+        topic_id TEXT NOT NULL DEFAULT '',
+        active_codex_thread_id TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (channel, chat_id, topic_id)
+      ) STRICT;
+
+      CREATE TABLE thread_metadata (
+        codex_thread_id TEXT PRIMARY KEY,
+        alias TEXT,
+        workspace TEXT,
+        workspace_allowed INTEGER NOT NULL DEFAULT 0 CHECK (workspace_allowed IN (0, 1)),
+        schedule_key TEXT,
+        last_seen_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      ) STRICT;
+    `,
+  },
+] as const;
