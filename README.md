@@ -44,8 +44,10 @@ installation still runs from a source checkout.
 - A local SQLite inbox provides retryable, idempotent notification delivery.
 - The bundled MCP tool only writes a local notification and never performs
   Telegram network delivery inline.
-- Private-chat allowlists, workspace allowlists, and a persistent kill switch
-  limit remote execution.
+- A single private Telegram user ID, workspace allowlists, and a persistent kill
+  switch limit who can trigger remote execution. Gateway-originated Codex turns
+  run with full host access, so protecting that Telegram account and bot token is
+  part of the host security boundary.
 
 ## 📦 Install from source
 
@@ -74,8 +76,10 @@ Edit `.env` locally and set:
 - `TELEGRAM_ALLOWED_CHAT_ID`
 - `CODEX_IM_GATEWAY_ALLOWED_WORKSPACES`
 
-Never commit `.env`. Multiple workspace roots use the operating system path
-delimiter (`:` on macOS/Linux and `;` on Windows).
+`TELEGRAM_ALLOWED_CHAT_ID` must equal `TELEGRAM_ALLOWED_USER_ID`; only that
+identity's private chat is accepted. Never commit `.env`. Multiple workspace
+roots use the operating system path delimiter (`:` on macOS/Linux and `;` on
+Windows).
 
 Install the checkout as a local Codex plugin, then start a new Codex task so its
 skills and MCP server are loaded. See the [operations guide](docs/operations.md)

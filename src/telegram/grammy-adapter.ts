@@ -23,11 +23,19 @@ export class GrammyTelegramAdapter implements TelegramApi {
 
   constructor(
     token: string,
+    private readonly allowedUserId: number,
     private readonly bot: Bot = new Bot(token),
   ) {
     this.bot.on("message:text", async (context) => {
       const message = context.message;
-      if (!this.handler || !message.from) return;
+      if (
+        !this.handler ||
+        !message.from ||
+        message.chat.type !== "private" ||
+        message.from.id !== this.allowedUserId ||
+        message.chat.id !== this.allowedUserId
+      )
+        return;
       await this.handler({
         messageId: String(message.message_id),
         chatId: message.chat.id,
@@ -45,7 +53,13 @@ export class GrammyTelegramAdapter implements TelegramApi {
     this.bot.on("callback_query:data", async (context) => {
       const query = context.callbackQuery;
       const message = query.message;
-      if (!this.callbackHandler || !message) {
+      if (
+        !this.callbackHandler ||
+        !message ||
+        message.chat.type !== "private" ||
+        query.from.id !== this.allowedUserId ||
+        message.chat.id !== this.allowedUserId
+      ) {
         await context.answerCallbackQuery();
         return;
       }

@@ -3,6 +3,39 @@ import { describe, expect, it, vi } from "vitest";
 import { GrammyTelegramAdapter, TELEGRAM_COMMANDS } from "../src/telegram/grammy-adapter.js";
 
 describe("GrammyTelegramAdapter", () => {
+  it("drops updates before routing unless they come from the sole allowed private user", async () => {
+    const handlers = new Map<string, (context: never) => Promise<void>>();
+    const bot = {
+      api: {},
+      catch: vi.fn(),
+      on: vi.fn((event: string, handler: (context: never) => Promise<void>) => {
+        handlers.set(event, handler);
+      }),
+    } as unknown as Bot;
+    const adapter = new GrammyTelegramAdapter("test-token", 7, bot);
+    const onMessage = vi.fn(async () => undefined);
+    adapter.onMessage(onMessage);
+    const handleMessage = handlers.get("message:text");
+    if (!handleMessage) throw new Error("Expected message handler registration");
+
+    const context = (userId: number, chatId: number, chatType: string) =>
+      ({
+        message: {
+          message_id: 1,
+          chat: { id: chatId, type: chatType },
+          from: { id: userId },
+          text: "hello",
+        },
+      }) as never;
+
+    await handleMessage(context(8, 7, "private"));
+    await handleMessage(context(7, -100, "group"));
+    await handleMessage(context(7, 7, "private"));
+
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, chatId: 7 }));
+  });
+
   it("registers every supported command and exposes the commands menu button", async () => {
     const setMyCommands = vi.fn(async () => true as const);
     const setChatMenuButton = vi.fn(async () => true as const);
@@ -11,7 +44,7 @@ describe("GrammyTelegramAdapter", () => {
       catch: vi.fn(),
       on: vi.fn(),
     } as unknown as Bot;
-    const adapter = new GrammyTelegramAdapter("test-token", bot);
+    const adapter = new GrammyTelegramAdapter("test-token", 7, bot);
 
     await adapter.configureCommandMenu(42);
 
@@ -32,7 +65,7 @@ describe("GrammyTelegramAdapter", () => {
       catch: vi.fn(),
       on: vi.fn(),
     } as unknown as Bot;
-    const adapter = new GrammyTelegramAdapter("test-token", bot);
+    const adapter = new GrammyTelegramAdapter("test-token", 7, bot);
 
     await adapter.sendTextMessage(42, "Select a thread:", null, [
       [{ text: "abcdef12 · Example", callbackData: "thread:abcdef12-full" }],
@@ -56,7 +89,7 @@ describe("GrammyTelegramAdapter", () => {
       catch: vi.fn(),
       on: vi.fn(),
     } as unknown as Bot;
-    const adapter = new GrammyTelegramAdapter("test-token", bot);
+    const adapter = new GrammyTelegramAdapter("test-token", 7, bot);
 
     const ref = await adapter.sendRichMessage(42, "# Result\n\n- passed", "9", [
       [{ text: "Continue", callbackData: "thread:abc" }],

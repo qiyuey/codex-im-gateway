@@ -50,6 +50,9 @@ lines.on("line", (line) => {
       })}\n`,
     );
   } else if (message.method === "thread/start") {
+    if (message.params.sandbox !== "danger-full-access") {
+      throw new Error("thread/start must use danger-full-access");
+    }
     process.stdout.write(
       `${JSON.stringify({ id: message.id, result: { thread: { id: "thread-fresh", cwd: message.params.cwd }, cwd: message.params.cwd } })}\n`,
     );
@@ -64,6 +67,9 @@ lines.on("line", (line) => {
       `${JSON.stringify({ id: message.id, result: { cwd: "/workspace/example" } })}\n`,
     );
   } else if (message.method === "turn/start") {
+    if (message.params.sandboxPolicy?.type !== "dangerFullAccess") {
+      throw new Error("turn/start must use dangerFullAccess");
+    }
     process.stdout.write(
       `${JSON.stringify({ id: message.id, result: { turn: { id: "turn-stream", status: "inProgress", items: [] } } })}\n`,
     );

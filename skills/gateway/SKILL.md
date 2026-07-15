@@ -16,4 +16,5 @@ Use the bundled `gateway` MCP tools for state inspection and configuration-safe 
    `telegram_deliver` tool instead of fabricating Codex thread or turn identifiers.
 4. Never ask for a Telegram bot token in chat. Direct the user to set it through the local
    configuration workflow once that workflow is available.
-5. Do not widen Codex sandbox permissions or workspace access through IM controls.
+5. Gateway-originated turns use the fixed `danger-full-access` policy. Do not add IM controls that
+   change permission mode or workspace access, and preserve sole-user private-chat authorization.

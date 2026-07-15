@@ -7,14 +7,14 @@ describe("loadRuntimeConfig", () => {
     const config = loadRuntimeConfig({
       TELEGRAM_BOT_TOKEN: "secret",
       TELEGRAM_ALLOWED_USER_ID: "7",
-      TELEGRAM_ALLOWED_CHAT_ID: "42",
+      TELEGRAM_ALLOWED_CHAT_ID: "7",
       CODEX_IM_GATEWAY_ALLOWED_WORKSPACES: [`./one`, `./two`].join(delimiter),
       CODEX_IM_GATEWAY_DISPATCH_INTERVAL_MS: "250",
     });
     expect(config).toEqual({
       telegramBotToken: "secret",
       telegramAllowedUserId: 7,
-      telegramAllowedChatId: 42,
+      telegramAllowedChatId: 7,
       allowedWorkspaces: [resolve("./one"), resolve("./two")],
       dispatchIntervalMs: 250,
     });
@@ -22,5 +22,16 @@ describe("loadRuntimeConfig", () => {
 
   it("rejects missing credentials", () => {
     expect(() => loadRuntimeConfig({})).toThrow();
+  });
+
+  it("rejects a chat ID that does not match the sole allowed private user", () => {
+    expect(() =>
+      loadRuntimeConfig({
+        TELEGRAM_BOT_TOKEN: "secret",
+        TELEGRAM_ALLOWED_USER_ID: "7",
+        TELEGRAM_ALLOWED_CHAT_ID: "42",
+        CODEX_IM_GATEWAY_ALLOWED_WORKSPACES: "./one",
+      }),
+    ).toThrow("TELEGRAM_ALLOWED_CHAT_ID must equal TELEGRAM_ALLOWED_USER_ID");
   });
 });

@@ -3,8 +3,8 @@ import { z } from "zod";
 
 const environmentSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TELEGRAM_ALLOWED_USER_ID: z.coerce.number().int(),
-  TELEGRAM_ALLOWED_CHAT_ID: z.coerce.number().int(),
+  TELEGRAM_ALLOWED_USER_ID: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  TELEGRAM_ALLOWED_CHAT_ID: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   CODEX_IM_GATEWAY_ALLOWED_WORKSPACES: z.string().min(1),
   CODEX_IM_GATEWAY_DISPATCH_INTERVAL_MS: z.coerce.number().int().min(100).default(1_000),
 });
@@ -19,6 +19,11 @@ export interface RuntimeConfig {
 
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   const parsed = environmentSchema.parse(env);
+  if (parsed.TELEGRAM_ALLOWED_CHAT_ID !== parsed.TELEGRAM_ALLOWED_USER_ID) {
+    throw new Error(
+      "TELEGRAM_ALLOWED_CHAT_ID must equal TELEGRAM_ALLOWED_USER_ID for private-chat-only access",
+    );
+  }
   const allowedWorkspaces = parsed.CODEX_IM_GATEWAY_ALLOWED_WORKSPACES.split(delimiter)
     .map((path) => path.trim())
     .filter(Boolean)

@@ -24,8 +24,8 @@ This software is remote-control software. Anyone authorized to send accepted IM
 messages may be able to cause Codex to read or modify files and run commands
 within configured permissions.
 
-Safe deployments must use private, allowlisted chats; restricted workspaces; a
-local app-server transport; an unprivileged service account where practical;
-and the narrowest useful Codex sandbox. Full-access execution must never be
-enabled through an IM command.
-
+Gateway-originated turns run with `danger-full-access`. Safe deployments must
+therefore use a dedicated bot restricted to one private Telegram user, protect
+that Telegram account and bot token as remote host credentials, retain the local
+app-server transport and kill switch, and use an unprivileged service account or
+dedicated host where practical. No IM command can change the permission mode.

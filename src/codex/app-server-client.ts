@@ -198,7 +198,7 @@ export class AppServerClient extends EventEmitter {
   }
 
   async startThread(cwd: string): Promise<ThreadStartResponse> {
-    const params: ThreadStartParams = { cwd, sandbox: "workspace-write" };
+    const params: ThreadStartParams = { cwd, sandbox: "danger-full-access" };
     const response = await this.request<ThreadStartResponse>("thread/start", params);
     this.threadSessions.set(response.thread.id, response);
     return response;
@@ -224,13 +224,7 @@ export class AppServerClient extends EventEmitter {
     const params: TurnStartParams = {
       threadId,
       input: [{ type: "text", text, text_elements: [] }],
-      sandboxPolicy: {
-        type: "workspaceWrite",
-        writableRoots: [resumed.cwd],
-        networkAccess: false,
-        excludeTmpdirEnvVar: false,
-        excludeSlashTmp: false,
-      },
+      sandboxPolicy: { type: "dangerFullAccess" },
     };
     let turnId: string | null = null;
     let streamedText = "";

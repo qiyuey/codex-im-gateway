@@ -98,7 +98,7 @@ older notification targets that historical run.
 - Reading `~/.codex/state_*.sqlite`, model caches, or transcript JSON as a stable
   integration API.
 - Exposing app-server directly to the public internet.
-- Enabling Telegram users to select `danger-full-access`.
+- Enabling Telegram users to select or change the fixed permission mode.
 - Acting as a public or multi-tenant chatbot.
 
 ## 4. Architecture
@@ -309,8 +309,8 @@ MVP requirements:
 - reject messages forwarded from or sent through unapproved contexts;
 - keep the bot token out of repository files and logs;
 - bind app-server only to stdio or a local Unix socket;
-- default Codex execution to `workspace-write`;
-- never expose a Telegram control for `danger-full-access`;
+- force Codex execution to `danger-full-access` for every new and resumed gateway turn;
+- never expose a Telegram control that changes the fixed permission mode;
 - maintain an explicit workspace allowlist;
 - redact secrets and cap notification/tool-output sizes;
 - route Codex/results through Rich Markdown and control messages through unparsed plain text;
@@ -368,7 +368,7 @@ Completed first-release implementation:
   `/stop`;
 - explicit `bound_task` versus `notification_only` identity, status cards, and
   Continue/Mute actions;
-- realpath workspace allowlisting, forced workspace-write follow-ups, and a
+- realpath workspace allowlisting, forced full-access follow-ups, and a
   persistent local inbound kill switch;
 - foreground daemon with structured metadata-only logs and graceful shutdown;
 - TypeScript, formatting, unit-test, build, distribution smoke-test, and plugin

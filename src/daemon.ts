@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   const notifications = new OutboundNotificationStore(database);
   const state = new GatewayStateStore(database);
   const appServer = new AppServerClient();
-  const telegram = new GrammyTelegramAdapter(config.telegramBotToken);
+  const telegram = new GrammyTelegramAdapter(config.telegramBotToken, config.telegramAllowedUserId);
   const killSwitch = new LocalKillSwitch();
   const service = new TelegramService(config, telegram, state, appServer, 750, () =>
     killSwitch.isInboundEnabled(),

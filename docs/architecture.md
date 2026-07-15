@@ -91,9 +91,11 @@ The implementation spawns the stdio transport, performs the required
 `initialize`/`initialized` handshake, correlates concurrent JSON-RPC requests,
 and uses the pinned generated types for `thread/read` and `thread/resume`. The
 canonical completion result is selected by the event's exact turn identifier;
-missing turns are errors rather than fallback candidates. Follow-ups resume the
-thread, force a workspace-write sandbox rooted at its allowed workspace, start a
-turn, and consume typed delta/completion notifications.
+missing turns are errors rather than fallback candidates. New threads and
+follow-ups force `danger-full-access`, start a turn, and consume typed
+delta/completion notifications. The workspace allowlist still controls which
+thread working directories may be selected or resumed; it is not a filesystem
+sandbox.
 
 For turns started through this connection, the client also accepts the
 experimental `item/tool/requestUserInput` server request. The Telegram bridge

@@ -51,8 +51,8 @@ exact question message. Tokens are consumed once and disappear on daemon
 restart, app-server resolution, or turn completion.
 
 Secret questions are rejected rather than sent to Telegram. Command, file, and
-permission approvals remain unsupported; Telegram cannot widen the Codex
-sandbox or grant `danger-full-access`.
+permission approvals remain unsupported. Gateway turns already use the fixed
+`danger-full-access` policy, and Telegram exposes no permission-mode control.
 
 ## Consequences
 
