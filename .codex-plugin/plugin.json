@@ -1,6 +1,6 @@
 {
   "name": "codex-im-gateway",
-  "version": "0.1.0+codex.20260715084952",
+  "version": "0.1.0+codex.20260715085342",
   "description": "Deliver Codex task results to IM platforms and continue their exact threads.",
   "author": {
     "name": "Codex IM Gateway contributors"
