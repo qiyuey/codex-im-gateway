@@ -181,7 +181,7 @@ describe("TelegramService", () => {
       format: "plain_text",
       topicId: "9",
     });
-    expect(api.sent[0]?.inlineKeyboard).toHaveLength(2);
+    expect(api.sent[0]?.inlineKeyboard).toHaveLength(3);
     expect(api.sent[0]?.inlineKeyboard?.[0]?.[0]).toMatchObject({
       text: expect.stringContaining("gateway-telegram-"),
       callbackData: expect.stringMatching(/^project:[A-Za-z0-9_-]{16}$/),
@@ -200,7 +200,13 @@ describe("TelegramService", () => {
       ref: { chatId: 42, messageId: "100", topicId: "9" },
       content: expect.stringContaining("请选择“gateway-telegram-"),
       format: "plain_text",
-      inlineKeyboard: [[{ text: "abcdef12 · Example", callbackData: "thread:abcdef12-full" }]],
+      inlineKeyboard: [
+        [{ text: "abcdef12 · Example", callbackData: "thread:abcdef12-full" }],
+        [
+          { text: "⬅️ 返回", callbackData: "threads:projects" },
+          { text: "✖️ 取消", callbackData: "threads:cancel" },
+        ],
+      ],
     });
 
     await service.handleCallbackQuery(
@@ -234,7 +240,13 @@ describe("TelegramService", () => {
     expect(api.callbackAnswers.at(-1)).toEqual({ queryId: "callback-1", text: undefined });
     expect(api.sent[0]).toMatchObject({
       content: "请选择项目：",
-      inlineKeyboard: [[{ text: "📋 其他任务", callbackData: "project:none" }]],
+      inlineKeyboard: [
+        [{ text: "📋 其他任务", callbackData: "project:none" }],
+        [
+          { text: "⬅️ 返回", callbackData: "threads:back" },
+          { text: "✖️ 取消", callbackData: "threads:cancel" },
+        ],
+      ],
     });
     expect(api.edits).toHaveLength(0);
   });
@@ -260,6 +272,10 @@ describe("TelegramService", () => {
 
     expect(api.sent[0]?.inlineKeyboard).toEqual([
       [{ text: "📋 其他任务", callbackData: "project:none" }],
+      [
+        { text: "⬅️ 返回", callbackData: "threads:back" },
+        { text: "✖️ 取消", callbackData: "threads:cancel" },
+      ],
     ]);
 
     await service.handleCallbackQuery(callbackQuery({ data: "project:none" }));
@@ -270,8 +286,49 @@ describe("TelegramService", () => {
       format: "plain_text",
       inlineKeyboard: [
         [{ text: "projectl · Quick task", callbackData: "thread:projectless-thread" }],
+        [
+          { text: "⬅️ 返回", callbackData: "threads:projects" },
+          { text: "✖️ 取消", callbackData: "threads:cancel" },
+        ],
       ],
     });
+  });
+
+  it("returns from tasks to projects and cancels without changing the active thread", async () => {
+    state.selectAndWatchThread("telegram", "42", null, "current-thread");
+    codex.listThreads.mockResolvedValue({
+      data: [{ id: "projectless-thread", cwd: directory, name: "Quick task", preview: "" }],
+      nextCursor: null,
+      backwardsCursor: null,
+    });
+
+    await service.handleCallbackQuery(callbackQuery({ data: "project:none" }));
+    await service.handleCallbackQuery(callbackQuery({ data: "threads:projects" }));
+
+    expect(api.edits.at(-1)).toMatchObject({
+      content: "请选择项目：",
+      inlineKeyboard: [
+        [{ text: "📋 其他任务", callbackData: "project:none" }],
+        [
+          { text: "⬅️ 返回", callbackData: "threads:back" },
+          { text: "✖️ 取消", callbackData: "threads:cancel" },
+        ],
+      ],
+    });
+
+    await service.handleCallbackQuery(callbackQuery({ data: "threads:cancel" }));
+
+    expect(api.edits.at(-1)).toMatchObject({
+      content: "已取消选择任务。",
+      inlineKeyboard: [],
+    });
+    expect(state.getActiveThread("telegram", "42")).toBe("current-thread");
+  });
+
+  it("closes the project picker when returning from its top level", async () => {
+    await service.handleCallbackQuery(callbackQuery({ data: "threads:back" }));
+
+    expect(api.edits.at(-1)).toMatchObject({ content: "已返回。", inlineKeyboard: [] });
   });
 
   it("shows an empty Tasks group and removes the project keyboard", async () => {
@@ -283,7 +340,12 @@ describe("TelegramService", () => {
     expect(api.edits[0]).toMatchObject({
       content: "“其他任务”中没有可用任务。",
       format: "plain_text",
-      inlineKeyboard: [],
+      inlineKeyboard: [
+        [
+          { text: "⬅️ 返回", callbackData: "threads:projects" },
+          { text: "✖️ 取消", callbackData: "threads:cancel" },
+        ],
+      ],
     });
   });
 
@@ -314,6 +376,7 @@ describe("TelegramService", () => {
         expect.stringContaining("gateway-telegram-"),
         expect.stringContaining("gateway-financial-"),
         "📋 其他任务",
+        "⬅️ 返回",
       ]);
     } finally {
       await rm(secondDirectory, { force: true, recursive: true });

@@ -108,7 +108,9 @@ replied-to Telegram message. The daemon registers these commands in Telegram's
 menu at startup. `/threads` first shows projects plus a **Tasks** group,
 then shows up to ten recent threads for the selected group. Projects use the
 nearest Git root inside the workspace allowlist, matching Codex's default
-project-root detection; allowed threads without one appear under **Tasks**.
+project-root detection; allowed threads without one appear under **Tasks**. Each
+picker level includes **Back** and **Cancel** actions; backing out of a task list
+returns to projects, while either action at the top level closes the picker.
 Tapping a thread selects it for the current chat or topic after its workspace is
 checked again, and watches that thread for new terminal states. Switching threads
 moves the watch; `/mute` stops notifications without changing the selected

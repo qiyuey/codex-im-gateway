@@ -37,6 +37,9 @@ import type {
 
 const THREAD_CALLBACK_PREFIX = "thread:";
 const PROJECT_CALLBACK_PREFIX = "project:";
+const THREAD_PICKER_PROJECTS_CALLBACK_DATA = "threads:projects";
+const THREAD_PICKER_BACK_CALLBACK_DATA = "threads:back";
+const THREAD_PICKER_CANCEL_CALLBACK_DATA = "threads:cancel";
 const MUTE_CALLBACK_PREFIX = "mute:";
 const USER_INPUT_CALLBACK_PREFIX = "input:";
 const DEFAULT_USER_INPUT_TTL_MS = 10 * 60_000;
@@ -118,6 +121,19 @@ export class TelegramService {
     if (query.data === THREAD_PICKER_CALLBACK_DATA) {
       await this.api.answerCallbackQuery(query.queryId);
       await this.sendThreadProjectPicker(query.chatId, query.topicId);
+      return;
+    }
+    if (query.data === THREAD_PICKER_PROJECTS_CALLBACK_DATA) {
+      await this.api.answerCallbackQuery(query.queryId);
+      await this.editThreadProjectPicker(query);
+      return;
+    }
+    if (query.data === THREAD_PICKER_BACK_CALLBACK_DATA) {
+      await this.closeThreadPicker(query, "已返回。");
+      return;
+    }
+    if (query.data === THREAD_PICKER_CANCEL_CALLBACK_DATA) {
+      await this.closeThreadPicker(query, "已取消选择任务。");
       return;
     }
     if (query.data.startsWith(PROJECT_CALLBACK_PREFIX)) {
@@ -478,6 +494,7 @@ export class TelegramService {
     const label = project?.label ?? "其他任务";
     const text = threads.length ? `请选择“${label}”中的任务：` : `“${label}”中没有可用任务。`;
     const keyboard = threads.slice(0, 10).map((thread) => [threadButton(thread)]);
+    keyboard.push(threadPickerNavigationRow(THREAD_PICKER_PROJECTS_CALLBACK_DATA));
     await this.api.editTextMessage(
       {
         chatId: query.chatId,
@@ -775,19 +792,33 @@ export class TelegramService {
 
   private async sendThreadProjectPicker(chatId: number, topicId: string | null): Promise<void> {
     const catalog = await this.loadThreadProjectCatalog();
-    const keyboard = catalog.projects.slice(0, 20).map((project) => [
+    await this.api.sendTextMessage(chatId, "请选择项目：", topicId, threadProjectKeyboard(catalog));
+  }
+
+  private async editThreadProjectPicker(query: TelegramCallbackQuery): Promise<void> {
+    const catalog = await this.loadThreadProjectCatalog();
+    await this.api.editTextMessage(
       {
-        text: `📁 ${project.label}`,
-        callbackData: `${PROJECT_CALLBACK_PREFIX}${project.id}`,
+        chatId: query.chatId,
+        messageId: query.messageId,
+        topicId: query.topicId,
       },
-    ]);
-    keyboard.push([
+      "请选择项目：",
+      threadProjectKeyboard(catalog),
+    );
+  }
+
+  private async closeThreadPicker(query: TelegramCallbackQuery, text: string): Promise<void> {
+    await this.api.answerCallbackQuery(query.queryId);
+    await this.api.editTextMessage(
       {
-        text: "📋 其他任务",
-        callbackData: `${PROJECT_CALLBACK_PREFIX}${NO_PROJECT_ID}`,
+        chatId: query.chatId,
+        messageId: query.messageId,
+        topicId: query.topicId,
       },
-    ]);
-    await this.api.sendTextMessage(chatId, "请选择项目：", topicId, keyboard);
+      text,
+      [],
+    );
   }
 }
 
@@ -858,6 +889,30 @@ function threadButton(thread: ProjectThread) {
     text: `${thread.id.slice(0, 8)} · ${(thread.name ?? (thread.preview || "Untitled")).slice(0, 48)}`,
     callbackData: `${THREAD_CALLBACK_PREFIX}${thread.id}`,
   };
+}
+
+function threadProjectKeyboard(catalog: ThreadProjectCatalog) {
+  const keyboard = catalog.projects.slice(0, 20).map((project) => [
+    {
+      text: `📁 ${project.label}`,
+      callbackData: `${PROJECT_CALLBACK_PREFIX}${project.id}`,
+    },
+  ]);
+  keyboard.push([
+    {
+      text: "📋 其他任务",
+      callbackData: `${PROJECT_CALLBACK_PREFIX}${NO_PROJECT_ID}`,
+    },
+  ]);
+  keyboard.push(threadPickerNavigationRow(THREAD_PICKER_BACK_CALLBACK_DATA));
+  return keyboard;
+}
+
+function threadPickerNavigationRow(backCallbackData: string) {
+  return [
+    { text: "⬅️ 返回", callbackData: backCallbackData },
+    { text: "✖️ 取消", callbackData: THREAD_PICKER_CANCEL_CALLBACK_DATA },
+  ];
 }
 
 function watchBaseline(snapshot: WatchedThreadSnapshot) {
