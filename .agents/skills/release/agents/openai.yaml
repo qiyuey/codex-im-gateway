@@ -1,4 +1,4 @@
 interface:
   display_name: "Release"
-  short_description: "Verify, publish, apply, and monitor a release"
-  default_prompt: "Use $release to verify, publish, apply, and monitor this plugin release."
+  short_description: "Verify, publish, restart, and monitor a release"
+  default_prompt: "Use $release to verify, publish, apply, restart, and monitor this plugin release."

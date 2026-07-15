@@ -1,12 +1,12 @@
 ---
 name: release
-description: "Publish the Codex IM Gateway plugin through a guarded end-to-end release workflow: refresh the plugin cachebuster, reproduce CI locally, commit and push with Conventional Commits, reinstall the exact local plugin build, and monitor the matching GitHub Actions run to completion. Use only when the user explicitly asks to release, publish, ship, or deploy the current repository changes; this skill performs git pushes and changes the locally installed plugin."
+description: "Publish the Codex IM Gateway plugin through a guarded end-to-end release workflow: refresh the plugin cachebuster, reproduce CI locally, commit and push with Conventional Commits, reinstall the exact local plugin build, restart and verify the gateway daemon, and monitor the matching GitHub Actions run to completion. Use only when the user explicitly asks to release, publish, ship, or deploy the current repository changes; this skill performs git pushes, changes the locally installed plugin, and restarts the gateway daemon."
 ---
 
 # Release Codex IM Gateway
 
 Run the stages below in order. Treat the commit SHA and manifest version as the release identity.
-Do not claim success unless local application and remote CI both succeed.
+Do not claim success unless local plugin application, daemon restart, and remote CI all succeed.
 
 ## 1. Guard the release scope
 
@@ -62,7 +62,7 @@ Do not claim success unless local application and remote CI both succeed.
 5. Confirm the pushed remote ref resolves to `release_sha`. Stop the publishing stage if it does
    not.
 
-## 4. Apply the exact build locally
+## 4. Apply the exact build and restart the daemon locally
 
 Local application must use the marketplace entry that already points at this checkout.
 
@@ -82,8 +82,44 @@ Local application must use the marketplace entry that already points at this che
 
 4. Re-read `codex plugin list --json`. Verify the plugin is installed and enabled, its resolved
    source is this checkout, and its installed version equals `release_version`.
-5. Do not restart or terminate a running gateway daemon unless the user explicitly requests it.
-   Tell the user to start a new Codex task to load the refreshed skill and MCP bundle.
+5. Only after the exact plugin verification succeeds, restart the macOS launchd service
+   `gui/$(id -u)/com.qiyuey.codex-im-gateway`:
+
+   ```bash
+   service_target="gui/$(id -u)/com.qiyuey.codex-im-gateway"
+   before_state=$(launchctl print "$service_target")
+   before_pid=$(printf '%s\n' "$before_state" | awk '/^[[:space:]]*pid = / {print $3; exit}')
+   test -n "$before_pid"
+   launchctl kickstart -k "$service_target"
+
+   after_pid=
+   restart_verified=false
+   for attempt in 1 2 3 4 5 6 7 8 9 10; do
+     after_state=$(launchctl print "$service_target" 2>/dev/null || true)
+     after_pid=$(printf '%s\n' "$after_state" | awk '/^[[:space:]]*pid = / {print $3; exit}')
+     if test -n "$after_pid" && test "$after_pid" != "$before_pid" && \
+       printf '%s\n' "$after_state" | grep -q 'state = running' && \
+       printf '%s\n' "$after_state" | grep -q 'last exit code = 0' && \
+       node dist/cli.js health | jq -e '.status == "ok"' >/dev/null; then
+       restart_verified=true
+       break
+     fi
+     sleep 1
+   done
+   test "$restart_verified" = true
+   ```
+
+   - require `launchctl print` for that exact service target to succeed before restarting;
+   - capture its current PID, run `launchctl kickstart -k` for the exact target, then poll briefly;
+   - require a new non-empty PID, `state = running`, and `last exit code = 0`;
+   - run `node dist/cli.js health` from the repository root and require `status = ok`;
+   - do not fall back to killing a process discovered by name or to restarting a similarly named
+     service.
+
+6. If the exact service is unavailable or any restart verification fails, record local application
+   as failed and continue to CI monitoring so the remote result is still reported. Do not claim the
+   release succeeded.
+7. Tell the user to start a new Codex task to load the refreshed skill and MCP bundle.
 
 ## 5. Monitor the matching CI run
 
@@ -114,9 +150,11 @@ Report all of the following in the final response:
 
 - branch, commit SHA, Conventional Commit subject, and pushed remote;
 - manifest version and local plugin application status;
+- daemon restart status, including the old and new PID when successful;
 - CI run URL and terminal conclusion, or the precise reason no matching run exists;
 - the required new-task pickup step;
 - any partial failure after the push, without implying that the remote commit was rolled back.
 
-Call the release successful only when both exact local application and the matching remote CI run
-succeed. A missing or non-triggered CI run is an incomplete release, not a successful one.
+Call the release successful only when exact local plugin application, the verified daemon restart,
+and the matching remote CI run all succeed. A missing or non-triggered CI run is an incomplete
+release, not a successful one.
