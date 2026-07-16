@@ -9,6 +9,7 @@ export class TelegramCompletionSender implements CompletionSender {
     private readonly api: TelegramApi,
     private readonly chatId: number,
     private readonly language: GatewayLanguage = "zh",
+    private readonly tasksWorkspace?: string,
   ) {}
 
   async sendCompletion(
@@ -17,7 +18,11 @@ export class TelegramCompletionSender implements CompletionSender {
   ): Promise<{ readonly messageId: string }> {
     const message = await this.api.sendRichMessage(
       this.chatId,
-      renderCompletion(result, this.language),
+      renderCompletion(
+        result,
+        this.language,
+        result.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+      ),
       null,
       taskActionKeyboard(result.threadId, this.language),
     );

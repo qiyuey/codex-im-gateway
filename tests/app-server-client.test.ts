@@ -92,6 +92,16 @@ describe("AppServerClient", () => {
     });
   });
 
+  it("passes the dedicated cwd when starting a task without a project", async () => {
+    client = new AppServerClient({ command: process.execPath, args: [fakeServer] });
+    await client.connect();
+
+    const started = await client.startThread("/workspace/tasks");
+
+    expect(started.cwd).toBe("/workspace/tasks");
+    expect(started.thread.cwd).toBe("/workspace/tasks");
+  });
+
   it("round-trips an experimental request_user_input server request", async () => {
     client = new AppServerClient({ command: process.execPath, args: [fakeServer] });
     await client.connect();

@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     enqueueStopEvent(JSON.parse(raw) as StopHookInput);
   } catch {
     // Notification capture must never block or fail the Codex turn.
-    process.stderr.write("codex-im-gateway: unable to queue completion event\n");
+    process.stderr.write("codex-im: unable to queue completion event\n");
   }
 }
 

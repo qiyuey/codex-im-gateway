@@ -12,7 +12,7 @@ const packagedManifest = JSON.parse(
   await readFile("artifacts/plugin/.codex-plugin/plugin.json", "utf8"),
 );
 
-assert(manifest.name === "codex-im-gateway", "manifest name must match the plugin directory");
+assert(manifest.name === "codex-im", "manifest name must match the plugin directory");
 assert(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(manifest.version), "invalid version");
 assert(
   manifest.version.split("+")[0] === packageJson.version,
@@ -50,10 +50,10 @@ assert(
 );
 const stopHook = hookConfig.hooks?.Stop?.[0]?.hooks?.[0];
 assert(stopHook?.type === "command", "missing Stop command hook");
-assert(stopHook.command.includes("CODEX_IM_GATEWAY_DATA_DIR"), "Stop hook data dir is not shared");
+assert(stopHook.command.includes("CODEX_IM_DATA_DIR"), "Stop hook data dir is not shared");
 assert(stopHook.command.includes("$PLUGIN_ROOT"), "Stop hook must resolve from PLUGIN_ROOT");
 assert(
-  stopHook.commandWindows.includes("CODEX_IM_GATEWAY_DATA_DIR"),
+  stopHook.commandWindows.includes("CODEX_IM_DATA_DIR"),
   "Windows Stop hook data dir is not shared",
 );
 assert(builtStopHook.includes("unable to queue completion event"), "built Stop hook is missing");

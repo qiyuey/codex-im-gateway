@@ -9,7 +9,7 @@ import { LocalKillSwitch } from "../src/security/kill-switch.js";
 describe("collectGatewayHealth", () => {
   it("requires a live compatible daemon and respects the selected data directory", () => {
     const directory = mkdtempSync(join(tmpdir(), "gateway-health-"));
-    const env = { CODEX_IM_GATEWAY_DATA_DIR: directory };
+    const env = { CODEX_IM_DATA_DIR: directory };
     const status = new RuntimeStatusWriter(resolveRuntimeStatusPath(env));
     try {
       status.start(60_000);

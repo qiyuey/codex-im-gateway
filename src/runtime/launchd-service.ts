@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { resolveDataDirectory } from "../config/paths.js";
 import { readRuntimeHealth } from "./runtime-status.js";
 
-export const LAUNCHD_SERVICE_LABEL = "com.qiyuey.codex-im-gateway";
+export const LAUNCHD_SERVICE_LABEL = "com.qiyuey.codex-im";
 
 export interface LaunchdInstallOptions {
   readonly runtimeRoot: string;

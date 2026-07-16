@@ -124,7 +124,7 @@ export class AppServerClient extends EventEmitter {
       const response = await this.request<InitializeResponse>("initialize", {
         clientInfo: {
           name: "codex_im_gateway",
-          title: "Codex IM Gateway",
+          title: "Codex IM",
           version: this.clientVersion,
         },
         capabilities: { experimentalApi: true },

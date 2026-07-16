@@ -4,7 +4,7 @@ const env = { ...process.env };
 delete env.TELEGRAM_BOT_TOKEN;
 delete env.TELEGRAM_ALLOWED_USER_ID;
 delete env.TELEGRAM_ALLOWED_CHAT_ID;
-delete env.CODEX_IM_GATEWAY_ALLOWED_WORKSPACES;
+delete env.CODEX_IM_ALLOWED_WORKSPACES;
 
 const result = spawnSync(process.execPath, ["dist/daemon.js"], {
   cwd: process.cwd(),

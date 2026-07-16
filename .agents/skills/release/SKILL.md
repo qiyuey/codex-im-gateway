@@ -1,9 +1,9 @@
 ---
 name: release
-description: "Publish the Codex IM Gateway plugin through a guarded end-to-end release workflow: refresh the plugin cachebuster, reproduce CI locally, commit and push with Conventional Commits, reinstall the exact local plugin build, restart and verify the gateway daemon, and monitor the matching GitHub Actions run to completion. Use only when the user explicitly asks to release, publish, ship, or deploy the current repository changes; this skill performs git pushes, changes the locally installed plugin, and restarts the gateway daemon."
+description: "Publish the Codex IM plugin through a guarded end-to-end release workflow: refresh the plugin cachebuster, reproduce CI locally, commit and push with Conventional Commits, reinstall the exact local plugin build, restart and verify the gateway daemon, and monitor the matching GitHub Actions run to completion. Use only when the user explicitly asks to release, publish, ship, or deploy the current repository changes; this skill performs git pushes, changes the locally installed plugin, and restarts the gateway daemon."
 ---
 
-# Release Codex IM Gateway
+# Release Codex IM
 
 Run the stages below in order. Treat the commit SHA and manifest version as the release identity.
 Do not claim success unless local plugin application, daemon restart, and remote CI all succeed.
@@ -67,7 +67,7 @@ Do not claim success unless local plugin application, daemon restart, and remote
 Local application must use the marketplace entry that already points at this checkout.
 
 1. Read `codex plugin list --available --json`, but filter the JSON before displaying it so only
-   `codex-im-gateway` entries consume context. Also read `codex plugin marketplace list --json`.
+   `codex-im` entries consume context. Also read `codex plugin marketplace list --json`.
    Find exactly one entry whose `source.source` is `local`, whose source path resolves through
    `realpath` to the current repository root, and whose marketplace has a local filesystem root
    that contains that source path. Do not infer identity from the plugin name alone, and do not
@@ -77,16 +77,25 @@ Local application must use the marketplace entry that already points at this che
 3. Reinstall from the matched marketplace:
 
    ```bash
-   codex plugin add codex-im-gateway@<marketplace-name> --json
+   codex plugin add codex-im@<marketplace-name> --json
    ```
 
 4. Re-read `codex plugin list --json`. Verify the plugin is installed and enabled, its resolved
    source is this checkout, and its installed version equals `release_version`.
-5. Only after the exact plugin verification succeeds, restart the macOS launchd service
-   `gui/$(id -u)/com.qiyuey.codex-im-gateway`:
+5. Inspect lifecycle hooks with Codex `/hooks`. If the `codex-im` Stop hook is new or changed,
+   review its exact source and command before trusting it. Require the reviewed command to invoke
+   `$PLUGIN_ROOT/dist/hooks/stop.js` and use the expected Codex IM data directory. Do not trust
+   unrelated pending hooks. Treat an untrusted or unverifiable Codex IM hook as a failed local
+   application; a healthy daemon alone does not prove completion capture works.
+6. Run one minimal real Codex task and verify its top-level completion produces a new delivered
+   event in the gateway database with the same thread ID. This intentionally sends one Telegram
+   test card and validates the actual Stop hook -> queue -> daemon -> Telegram path; do not use
+   `gateway_enqueue` as a substitute.
+7. Only after the exact plugin and hook verification succeeds, restart the macOS launchd service
+   `gui/$(id -u)/com.qiyuey.codex-im`:
 
    ```bash
-   service_target="gui/$(id -u)/com.qiyuey.codex-im-gateway"
+   service_target="gui/$(id -u)/com.qiyuey.codex-im"
    before_state=$(launchctl print "$service_target")
    before_pid=$(printf '%s\n' "$before_state" | awk '/^[[:space:]]*pid = / {print $3; exit}')
    test -n "$before_pid"
@@ -116,10 +125,10 @@ Local application must use the marketplace entry that already points at this che
    - do not fall back to killing a process discovered by name or to restarting a similarly named
      service.
 
-6. If the exact service is unavailable or any restart verification fails, record local application
+8. If the exact service is unavailable or any restart verification fails, record local application
    as failed and continue to CI monitoring so the remote result is still reported. Do not claim the
    release succeeded.
-7. Tell the user to start a new Codex task to load the refreshed skill and MCP bundle.
+9. Tell the user to start a new Codex task to load the refreshed skill and MCP bundle.
 
 ## 5. Monitor the matching CI run
 
@@ -150,6 +159,7 @@ Report all of the following in the final response:
 
 - branch, commit SHA, Conventional Commit subject, and pushed remote;
 - manifest version and local plugin application status;
+- lifecycle Hook trust and end-to-end completion delivery status;
 - daemon restart status, including the old and new PID when successful;
 - CI run URL and terminal conclusion, or the precise reason no matching run exists;
 - the required new-task pickup step;

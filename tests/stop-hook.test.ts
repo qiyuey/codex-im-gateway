@@ -14,9 +14,9 @@ afterEach(async () => {
 
 describe("Stop hook", () => {
   it("durably and idempotently captures a top-level completed turn", async () => {
-    const root = await mkdtemp(join(tmpdir(), "codex-im-gateway-hook-"));
+    const root = await mkdtemp(join(tmpdir(), "codex-im-hook-"));
     roots.push(root);
-    const env = { CODEX_IM_GATEWAY_DATA_DIR: root };
+    const env = { CODEX_IM_DATA_DIR: root };
     const input = {
       hook_event_name: "Stop",
       session_id: "thread-1",

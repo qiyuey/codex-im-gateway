@@ -1,4 +1,4 @@
-# Codex IM Gateway
+# Codex IM
 
 > Get every Codex result in Telegram and explicitly switch which task your phone controls.
 
@@ -9,7 +9,7 @@
 [![pnpm](https://img.shields.io/badge/pnpm-11%2B-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Codex IM Gateway is a local-first Codex plugin for people who want to leave a
+Codex IM is a local-first Codex plugin for people who want to leave a
 task running on their computer, receive the result in Telegram, and safely
 continue that exact conversation without returning to the desktop.
 
@@ -52,8 +52,8 @@ itself.
 ### 1. Build the gateway
 
 ```bash
-git clone https://github.com/qiyuey/codex-im-gateway.git
-cd codex-im-gateway
+git clone https://github.com/qiyuey/codex-im-gateway.git codex-im
+cd codex-im
 pnpm install --frozen-lockfile
 pnpm check
 cp .env.example .env
@@ -70,15 +70,18 @@ Set these values in the local `.env` file:
 TELEGRAM_BOT_TOKEN=your-bot-token
 TELEGRAM_ALLOWED_USER_ID=123456789
 TELEGRAM_ALLOWED_CHAT_ID=123456789
-CODEX_IM_GATEWAY_ALLOWED_WORKSPACES=/absolute/path/to/workspace
-CODEX_IM_GATEWAY_LANGUAGE=en
+CODEX_IM_ALLOWED_WORKSPACES=/absolute/path/to/workspace
+CODEX_IM_TASKS_WORKSPACE=/absolute/path/to/Documents/Codex
+CODEX_IM_LANGUAGE=en
 ```
 
 - `TELEGRAM_ALLOWED_CHAT_ID` must be the same as `TELEGRAM_ALLOWED_USER_ID`.
   Group chats and other users are rejected.
-- `CODEX_IM_GATEWAY_ALLOWED_WORKSPACES` accepts multiple absolute roots separated
+- `CODEX_IM_ALLOWED_WORKSPACES` accepts multiple absolute roots separated
   by `:` on macOS/Linux or `;` on Windows.
-- `CODEX_IM_GATEWAY_LANGUAGE` can be `en` or `zh` and defaults to `zh`. It changes
+- `CODEX_IM_TASKS_WORKSPACE` is the hidden workspace for Tasks without a
+  project. It defaults to `~/Documents/Codex` and is not shown as a project button.
+- `CODEX_IM_LANGUAGE` can be `en` or `zh` and defaults to `zh`. It changes
   gateway buttons, commands, task cards, prompts, and status messages, but does
   not translate Codex output.
 - Never commit `.env` or paste the bot token into a Codex conversation.
@@ -86,8 +89,11 @@ CODEX_IM_GATEWAY_LANGUAGE=en
 ### 3. Install the local plugin
 
 Add this checkout to a trusted local Codex marketplace, install
-`codex-im-gateway` from that marketplace, and then start a **new Codex task** so
-the bundled skills and MCP server are loaded. See the official
+`codex-im` from that marketplace, run `/hooks` in Codex, and review and trust
+the bundled Stop hook. Installing, renaming, or changing a plugin hook does not
+automatically trust it; Codex skips an untrusted hook, so completion events will
+not reach Telegram. Then start a **new Codex task** so the bundled skills and
+MCP server are loaded. See the official
 [local plugin instructions](https://developers.openai.com/codex/plugins/build#install-a-local-plugin-manually)
 and the project's [operations guide](docs/operations.md).
 
@@ -159,7 +165,7 @@ as an independent notification and offers a task picker instead.
 | `/threads` | Choose a project, then a recent task |
 | `/use <id-prefix>` | Select one task by an unambiguous ID prefix |
 | `/current` | Show the active task |
-| `/new` | Create a task in the first allowed workspace |
+| `/new` | Choose an allowed workspace, or Tasks without a project, then create a task |
 | `/mute` | Stop completion notifications for the active task |
 | `/unmute` | Restore completion notifications for the active task |
 | `/detach` | Clear the active task selection |
@@ -203,8 +209,9 @@ node dist/cli.js enable
 ```
 
 Runtime state is stored in
-`~/.local/share/codex-im-gateway/gateway.sqlite` by default. Start a new Codex
-task after installing or refreshing the plugin. Restart the daemon after
+`~/.local/share/codex-im/gateway.sqlite` by default. Start a new Codex
+task after installing or refreshing the plugin. If the hook definition changed,
+run `/hooks` and trust the reviewed definition again. Restart the daemon after
 changing `.env`.
 
 For backup, token rotation, queue recovery, and removal instructions, see

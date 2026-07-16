@@ -19,7 +19,7 @@ afterEach(() => {
 describe("runtime status", () => {
   it("reports a live compatible heartbeat and then a clean stop", () => {
     const directory = temporaryDirectory();
-    const env = { CODEX_IM_GATEWAY_DATA_DIR: directory };
+    const env = { CODEX_IM_DATA_DIR: directory };
     let now = 1_000;
     const writer = new RuntimeStatusWriter(resolveRuntimeStatusPath(env), () => now, process.pid);
 
@@ -43,7 +43,7 @@ describe("runtime status", () => {
 
   it("treats malformed status as unknown", () => {
     const directory = temporaryDirectory();
-    const env = { CODEX_IM_GATEWAY_DATA_DIR: directory };
+    const env = { CODEX_IM_DATA_DIR: directory };
     writeFileSync(resolveRuntimeStatusPath(env), "not-json");
     expect(readRuntimeHealth(env)).toMatchObject({ running: false, state: "unknown" });
   });

@@ -9,7 +9,7 @@ import type {
 import { type CodexAppUiState, loadCodexAppUiState } from "../codex/app-ui-state.js";
 import type { ToolRequestUserInputAnswer } from "../codex/protocol/v2/ToolRequestUserInputAnswer.js";
 import { ThreadQueue } from "../concurrency/thread-queue.js";
-import type { RuntimeConfig } from "../config/runtime-config.js";
+import { authorizedWorkspaces, type RuntimeConfig } from "../config/runtime-config.js";
 import { type GatewayLanguage, type MessageKey, translate } from "../core/i18n.js";
 import { routeMessage } from "../router/router.js";
 import { isWorkspaceAllowed } from "../security/workspace.js";
@@ -42,6 +42,9 @@ const PROJECT_CALLBACK_PREFIX = "project:";
 const THREAD_PICKER_PROJECTS_CALLBACK_DATA = "threads:projects";
 const THREAD_PICKER_BACK_CALLBACK_DATA = "threads:back";
 const THREAD_PICKER_CANCEL_CALLBACK_DATA = "threads:cancel";
+const NEW_TASK_CALLBACK_PREFIX = "new:";
+const NEW_TASK_NO_DIRECTORY_CALLBACK_DATA = `${NEW_TASK_CALLBACK_PREFIX}none`;
+const NEW_TASK_CANCEL_CALLBACK_DATA = `${NEW_TASK_CALLBACK_PREFIX}cancel`;
 const MUTE_CALLBACK_PREFIX = "mute:";
 const USER_INPUT_CALLBACK_PREFIX = "input:";
 const DEFAULT_USER_INPUT_TTL_MS = 10 * 60_000;
@@ -121,6 +124,10 @@ export class TelegramService {
       await this.handleUserInputCallback(query);
       return;
     }
+    if (query.data.startsWith(NEW_TASK_CALLBACK_PREFIX)) {
+      await this.handleNewTaskCallback(query, query.data.slice(NEW_TASK_CALLBACK_PREFIX.length));
+      return;
+    }
     if (query.data === THREAD_PICKER_CALLBACK_DATA) {
       await this.api.answerCallbackQuery(query.queryId);
       await this.sendThreadProjectPicker(query.chatId, query.topicId);
@@ -183,7 +190,7 @@ export class TelegramService {
     }
     try {
       const resumed = await this.appServer.resumeThread(threadId);
-      if (!(await isWorkspaceAllowed(resumed.cwd, this.config.allowedWorkspaces))) {
+      if (!(await isWorkspaceAllowed(resumed.cwd, authorizedWorkspaces(this.config)))) {
         await this.api.answerCallbackQuery(query.queryId, this.text("taskUnavailable"));
         return;
       }
@@ -237,6 +244,55 @@ export class TelegramService {
         taskSwitchKeyboard(threadId, this.config.language),
       )
       .catch(() => undefined);
+  }
+
+  private async handleNewTaskCallback(
+    query: TelegramCallbackQuery,
+    directoryId: string,
+  ): Promise<void> {
+    if (directoryId === "cancel") {
+      await this.api.answerCallbackQuery(query.queryId);
+      await this.api.editTextMessage(
+        { chatId: query.chatId, messageId: query.messageId, topicId: query.topicId },
+        this.text("cancelledNewTask"),
+        [],
+      );
+      return;
+    }
+
+    const directoryIndex = Number(directoryId);
+    const cwd =
+      directoryId === "none"
+        ? this.config.tasksWorkspace
+        : Number.isSafeInteger(directoryIndex) && directoryIndex >= 0
+          ? this.config.allowedWorkspaces[directoryIndex]
+          : undefined;
+    if (cwd === undefined) {
+      await this.api.answerCallbackQuery(query.queryId, this.text("directoryUnavailable"));
+      return;
+    }
+
+    await this.api.answerCallbackQuery(query.queryId);
+    try {
+      const response = await this.appServer.startThread(cwd);
+      this.state.selectAndWatchThread(
+        "telegram",
+        String(query.chatId),
+        query.topicId,
+        response.thread.id,
+      );
+      await this.api.editTextMessage(
+        { chatId: query.chatId, messageId: query.messageId, topicId: query.topicId },
+        this.text("createdAndWatching", { thread: response.thread.id }),
+        [],
+      );
+    } catch {
+      await this.api.editTextMessage(
+        { chatId: query.chatId, messageId: query.messageId, topicId: query.topicId },
+        this.text("newTaskFailed"),
+        [],
+      );
+    }
   }
 
   private async handleUserInputRequest(request: UserInputRequest): Promise<void> {
@@ -676,19 +732,11 @@ export class TelegramService {
       return;
     }
     if (command === "new") {
-      const cwd = this.config.allowedWorkspaces[0];
-      if (!cwd) throw new Error("No allowed workspace configured");
-      const response = await this.appServer.startThread(cwd);
-      this.state.selectAndWatchThread(
-        "telegram",
-        String(message.chatId),
-        message.topicId,
-        response.thread.id,
-      );
       await this.api.sendTextMessage(
         message.chatId,
-        this.text("createdAndWatching", { thread: response.thread.id }),
+        this.text("chooseNewTaskDirectory"),
         message.topicId,
+        newTaskDirectoryKeyboard(this.config.allowedWorkspaces, this.config.language),
       );
       return;
     }
@@ -734,7 +782,7 @@ export class TelegramService {
     }
 
     const resumed = await this.appServer.resumeThread(decision.threadId);
-    if (!(await isWorkspaceAllowed(resumed.cwd, this.config.allowedWorkspaces))) {
+    if (!(await isWorkspaceAllowed(resumed.cwd, authorizedWorkspaces(this.config)))) {
       await this.api.sendTextMessage(
         message.chatId,
         this.text("workspaceNotAllowed"),
@@ -770,6 +818,7 @@ export class TelegramService {
       placeholder,
       this.editDebounceMs,
       this.config.language,
+      this.config.tasksWorkspace,
     );
     const context = { ref: placeholder, cwd } satisfies ActiveTurnContext;
     this.activeTurnContexts.set(threadId, context);
@@ -831,7 +880,7 @@ export class TelegramService {
     if (
       matches.length !== 1 ||
       !match ||
-      !(await isWorkspaceAllowed(match.cwd, this.config.allowedWorkspaces))
+      !(await isWorkspaceAllowed(match.cwd, authorizedWorkspaces(this.config)))
     )
       return null;
     return match;
@@ -851,7 +900,7 @@ export class TelegramService {
     }
     return buildThreadProjectCatalog(
       threads,
-      this.config.allowedWorkspaces,
+      authorizedWorkspaces(this.config),
       await this.appUiStateLoader(),
     );
   }
@@ -921,6 +970,7 @@ class StreamingEditor {
     private readonly ref: TelegramMessageRef,
     private readonly debounceMs: number,
     private readonly language: GatewayLanguage,
+    private readonly tasksWorkspace: string,
   ) {}
 
   update(text: string): void {
@@ -945,6 +995,7 @@ class StreamingEditor {
           finalMessage: result.finalMessage || this.text,
         },
         this.language,
+        result.cwd === this.tasksWorkspace ? "Tasks" : undefined,
       ),
       taskActionKeyboard(result.threadId, this.language),
     );
@@ -987,6 +1038,33 @@ function threadProjectKeyboard(catalog: ThreadProjectCatalog, language: GatewayL
   ]);
   keyboard.push(threadPickerNavigationRow(THREAD_PICKER_BACK_CALLBACK_DATA, language));
   return keyboard;
+}
+
+function newTaskDirectoryKeyboard(allowedWorkspaces: readonly string[], language: GatewayLanguage) {
+  const keyboard = allowedWorkspaces.map((workspace, index) => [
+    {
+      text: `📁 ${directoryButtonLabel(workspace)}`,
+      callbackData: `${NEW_TASK_CALLBACK_PREFIX}${index}`,
+    },
+  ]);
+  keyboard.push([
+    {
+      text: `📋 ${translate(language, "noDirectoryTask")}`,
+      callbackData: NEW_TASK_NO_DIRECTORY_CALLBACK_DATA,
+    },
+  ]);
+  keyboard.push([
+    {
+      text: translate(language, "cancelled"),
+      callbackData: NEW_TASK_CANCEL_CALLBACK_DATA,
+    },
+  ]);
+  return keyboard;
+}
+
+function directoryButtonLabel(directory: string): string {
+  const maxLength = 56;
+  return directory.length <= maxLength ? directory : `…${directory.slice(-(maxLength - 1))}`;
 }
 
 function threadPickerNavigationRow(backCallbackData: string, language: GatewayLanguage) {

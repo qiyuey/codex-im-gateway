@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { renderCompletion, renderNotification, renderStreaming } from "../src/telegram/render.js";
+import {
+  renderCompletion,
+  renderNotification,
+  renderStreaming,
+  taskActionKeyboard,
+} from "../src/telegram/render.js";
 import { prepareRichMarkdown } from "../src/telegram/rich-markdown.js";
 
 describe("Telegram rendering", () => {
@@ -29,6 +34,29 @@ describe("Telegram rendering", () => {
     );
     expect(rendered).not.toContain("Reply to continue");
     expect(rendered.indexOf("Done.")).toBeLessThan(rendered.indexOf("**Project:**"));
+  });
+
+  it("labels projectless task cards as Tasks and keeps reusable task actions", () => {
+    const rendered = renderCompletion(
+      {
+        threadId: "thread-123456",
+        turnId: "turn-1",
+        status: "completed",
+        finalMessage: "Done.",
+        cwd: "/Users/example/Documents/Codex",
+        durationMs: null,
+      },
+      "en",
+      "Tasks",
+    );
+
+    expect(rendered).toContain("**Project:** `Tasks`");
+    expect(taskActionKeyboard("thread-123456", "en")).toEqual([
+      [
+        { text: "Switch to this task", callbackData: "switch:thread-123456" },
+        { text: "Mute this task", callbackData: "mute:thread-123456" },
+      ],
+    ]);
   });
 
   it("preserves explicit notification Markdown for Rich Messages", () => {

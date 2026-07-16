@@ -1,9 +1,9 @@
 ---
 name: gateway
-description: Configure, inspect, and troubleshoot Codex IM Gateway completion delivery. Use when the user asks about gateway health, queued notifications, Telegram delivery, or replying to Codex tasks from IM.
+description: Configure, inspect, and troubleshoot Codex IM completion delivery. Use when the user asks about gateway health, queued notifications, Telegram delivery, or replying to Codex tasks from IM.
 ---
 
-# Codex IM Gateway
+# Codex IM
 
 Use the bundled `gateway` MCP tools for state inspection and configuration-safe actions.
 

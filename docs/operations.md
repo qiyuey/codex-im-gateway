@@ -15,18 +15,23 @@ cp .env.example .env
 
 Edit `.env` locally. Never commit it. Set a Telegram BotFather token, the one
 allowed private user/chat ID, and absolute workspace roots. Install the built
-repository as a local Codex plugin through a trusted local marketplace. Start a
-new Codex task after installing or refreshing the plugin so its skills and MCP
-server load.
+repository as a local Codex plugin through a trusted local marketplace. Run
+`/hooks` in Codex, review the plugin-bundled Stop hook, and trust that exact
+definition. Codex skips new or changed plugin hooks until they are trusted, so
+an untrusted hook produces no completion event even when the daemon and
+Telegram connection are healthy. Start a new Codex task after installing or
+refreshing the plugin so its skills and MCP server load. Re-open `/hooks` after
+renaming the plugin or changing its hook definition.
 
-Set `CODEX_IM_GATEWAY_LANGUAGE=zh` for Chinese gateway UI or
-`CODEX_IM_GATEWAY_LANGUAGE=en` for English. Chinese is the default. The setting
+Set `CODEX_IM_LANGUAGE=zh` for Chinese gateway UI or
+`CODEX_IM_LANGUAGE=en` for English. Chinese is the default. The setting
 applies to Telegram command descriptions, buttons, task cards, pickers, input
 requests, and gateway status/error messages after the daemon restarts. Codex
 answers and caller-provided notification titles/messages are not translated.
 
 Every top-level Codex turn is captured automatically by the plugin `Stop` hook.
-The task workspace must be within `CODEX_IM_GATEWAY_ALLOWED_WORKSPACES`;
+The task workspace must be within `CODEX_IM_ALLOWED_WORKSPACES` or the
+dedicated `CODEX_IM_TASKS_WORKSPACE` used for Tasks without a project;
 otherwise the daemon moves its completion event to dead letter without sending
 it. Use `$telegram-delivery` only when a workflow needs a custom explicit result
 message; a bound explicit result is deduplicated against the automatic card for

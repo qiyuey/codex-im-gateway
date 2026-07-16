@@ -41,6 +41,7 @@ beforeEach(async () => {
     telegramAllowedUserId: 7,
     telegramAllowedChatId: 42,
     allowedWorkspaces: [directory],
+    tasksWorkspace: join(directory, "Tasks"),
     dispatchIntervalMs: 100,
     language: "zh",
   };
@@ -136,11 +137,41 @@ describe("TelegramService", () => {
     expect(api.sent[0]?.content).toContain("工作区不在允许范围内");
   });
 
-  it("creates and selects a workspace-scoped thread", async () => {
+  it("shows directory choices before creating a task", async () => {
     await service.handleMessage(message({ text: "/new" }));
+
+    expect(codex.startThread).not.toHaveBeenCalled();
+    expect(api.sent.at(-1)).toMatchObject({
+      content: "请选择新任务使用的目录：",
+      inlineKeyboard: [
+        [{ text: expect.stringContaining("gateway-telegram-"), callbackData: "new:0" }],
+        [{ text: "📋 无项目任务（Tasks）", callbackData: "new:none" }],
+        [{ text: "✖️ 取消", callbackData: "new:cancel" }],
+      ],
+    });
+
+    await service.handleCallbackQuery(callbackQuery({ data: "new:0" }));
+
     expect(codex.startThread).toHaveBeenCalledWith(directory);
     expect(state.getActiveThread("telegram", "42")).toBe("created-thread");
     expect(state.getThreadWatch("telegram", "42")?.codexThreadId).toBe("created-thread");
+    expect(api.edits.at(-1)?.content).toContain("已创建并切换到任务 created-thread");
+    expect(api.edits.at(-1)?.inlineKeyboard).toEqual([]);
+  });
+
+  it("creates a task in the dedicated projectless workspace when Tasks is selected", async () => {
+    await service.handleMessage(message({ text: "/new" }));
+    await service.handleCallbackQuery(callbackQuery({ data: "new:none" }));
+
+    expect(codex.startThread).toHaveBeenCalledWith(config.tasksWorkspace);
+    expect(state.getActiveThread("telegram", "42")).toBe("created-thread");
+  });
+
+  it("rejects stale or malformed new-task directory callbacks", async () => {
+    await service.handleCallbackQuery(callbackQuery({ data: "new:99" }));
+
+    expect(codex.startThread).not.toHaveBeenCalled();
+    expect(api.callbackAnswers.at(-1)?.text).toBe("此目录已不可用。");
   });
 
   it("selects an unambiguous allowed thread by short id and detaches it", async () => {

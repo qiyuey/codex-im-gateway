@@ -31,12 +31,12 @@ export class SingleInstanceLock {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
         const owner = readOwner(this.path);
         if (owner !== null && isProcessAlive(owner)) {
-          throw new Error(`Codex IM Gateway daemon is already running with PID ${owner}`);
+          throw new Error(`Codex IM daemon is already running with PID ${owner}`);
         }
         rmSync(this.path, { force: true });
       }
     }
-    throw new Error("Unable to acquire Codex IM Gateway daemon lock");
+    throw new Error("Unable to acquire Codex IM daemon lock");
   }
 
   release(): void {

@@ -13,13 +13,17 @@ import type { TelegramInlineButton } from "./types.js";
 export const THREAD_PICKER_CALLBACK_DATA = "threads";
 export const TASK_SWITCH_CALLBACK_PREFIX = "switch:";
 
-export function renderCompletion(result: CanonicalTurnResult, language: GatewayLanguage): string {
+export function renderCompletion(
+  result: CanonicalTurnResult,
+  language: GatewayLanguage,
+  projectOverride?: string,
+): string {
   const icon = result.status === "completed" ? "✅" : result.status === "interrupted" ? "⏹" : "❌";
   const body = result.finalMessage.trim() || translate(language, "noFinalMessage");
   const shortThread = result.threadId.slice(0, 8);
   const duration = formatDuration(result.durationMs);
   const context =
-    `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectLabel(result.cwd))} · ` +
+    `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectOverride ?? projectLabel(result.cwd))} · ` +
     `**${translate(language, "thread")}:** ${richMarkdownInlineCode(shortThread)}` +
     `${duration ? ` · **${translate(language, "duration")}:** ${escapeRichMarkdownText(duration)}` : ""}`;
   const heading = translate(language, "taskStatus", {
@@ -66,6 +70,7 @@ export function notificationActionKeyboard(
 export function renderWatchedBlocked(
   snapshot: WatchedThreadSnapshot,
   language: GatewayLanguage,
+  projectOverride?: string,
 ): string {
   const body =
     snapshot.latestTurn?.finalMessage.trim() ||
@@ -74,7 +79,7 @@ export function renderWatchedBlocked(
   return prepareRichMarkdown(
     `# ⚠️ ${translate(language, "statusBlocked")}\n\n` +
       `${body}\n\n---\n\n` +
-      `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectLabel(snapshot.cwd))} · ` +
+      `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectOverride ?? projectLabel(snapshot.cwd))} · ` +
       `**${translate(language, "thread")}:** ${richMarkdownInlineCode(snapshot.threadId.slice(0, 8))}`,
   );
 }

@@ -1,6 +1,6 @@
 import { GatewayApplication } from "../application/gateway-application.js";
 import { AppServerClient } from "../codex/app-server-client.js";
-import { loadRuntimeConfig } from "../config/runtime-config.js";
+import { authorizedWorkspaces, loadRuntimeConfig } from "../config/runtime-config.js";
 import { Dispatcher } from "../dispatcher/dispatcher.js";
 import { NotificationDispatcher } from "../dispatcher/notification-dispatcher.js";
 import { ThreadWatchMonitor } from "../dispatcher/thread-watch-monitor.js";
@@ -19,6 +19,7 @@ import { resolveRuntimeLockPath, SingleInstanceLock } from "./single-instance-lo
 
 export function createGatewayApplication(env: NodeJS.ProcessEnv = process.env): GatewayApplication {
   const config = loadRuntimeConfig(env);
+  const workspaceRoots = authorizedWorkspaces(config);
   const database = openGatewayDatabase(env);
   const events = new CompletionEventStore(database);
   const notifications = new OutboundNotificationStore(database);
@@ -41,14 +42,19 @@ export function createGatewayApplication(env: NodeJS.ProcessEnv = process.env): 
     events,
     state,
     appServer,
-    new TelegramCompletionSender(telegram, config.telegramAllowedChatId, config.language),
+    new TelegramCompletionSender(
+      telegram,
+      config.telegramAllowedChatId,
+      config.language,
+      config.tasksWorkspace,
+    ),
     target,
-    (cwd) => isWorkspaceAllowed(cwd, config.allowedWorkspaces),
+    (cwd) => isWorkspaceAllowed(cwd, workspaceRoots),
   );
   const notificationDispatcher = new NotificationDispatcher(
     notifications,
     new TelegramNotificationSender(telegram, config.telegramAllowedChatId, config.language),
-    (cwd) => isWorkspaceAllowed(cwd, config.allowedWorkspaces),
+    (cwd) => isWorkspaceAllowed(cwd, workspaceRoots),
     {
       findDeliveredMessageId: (notification) =>
         state.getTerminalDeliveryMessageId(
@@ -72,9 +78,10 @@ export function createGatewayApplication(env: NodeJS.ProcessEnv = process.env): 
     state,
     appServer,
     telegram,
-    (cwd) => isWorkspaceAllowed(cwd, config.allowedWorkspaces),
+    (cwd) => isWorkspaceAllowed(cwd, workspaceRoots),
     5_000,
     config.language,
+    config.tasksWorkspace,
   );
   return new GatewayApplication({
     config,

@@ -10,4 +10,4 @@ coverage/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
-.codex-im-gateway/
+.codex-im/

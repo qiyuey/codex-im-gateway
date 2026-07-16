@@ -15,7 +15,7 @@ describe("LocalKillSwitch", () => {
   it("persists inbound disablement until explicitly enabled", () => {
     const directory = mkdtempSync(join(tmpdir(), "gateway-kill-switch-"));
     directories.push(directory);
-    const env = { CODEX_IM_GATEWAY_DATA_DIR: directory };
+    const env = { CODEX_IM_DATA_DIR: directory };
     const first = new LocalKillSwitch(env);
 
     expect(first.isInboundEnabled()).toBe(true);

@@ -1,6 +1,6 @@
 # Contributing
 
-Codex IM Gateway is currently in pre-alpha implementation. Contributions that
+Codex IM is currently in pre-alpha implementation. Contributions that
 validate the assumptions in `PLAN.md`, improve the threat model, or add
 reproducible protocol and adapter fixtures are especially useful.
 

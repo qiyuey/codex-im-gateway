@@ -16,7 +16,7 @@ const command = process.argv[2] ?? "help";
 
 if (command === "help" || command === "--help" || command === "-h") {
   process.stdout.write(
-    `codex-im-gateway <command>\n\nCommands:\n  health\n  doctor\n  app-server-health\n  service status\n  service install [--runtime-root <path>] [--env-file <path>]\n  service restart\n  service uninstall\n  disable\n  enable\n  events [--state <state>] [--limit <n>]\n  notifications [--state <state>] [--limit <n>]\n  recover\n`,
+    `codex-im <command>\n\nCommands:\n  health\n  doctor\n  app-server-health\n  service status\n  service install [--runtime-root <path>] [--env-file <path>]\n  service restart\n  service uninstall\n  disable\n  enable\n  events [--state <state>] [--limit <n>]\n  notifications [--state <state>] [--limit <n>]\n  recover\n`,
   );
   process.exit(0);
 }

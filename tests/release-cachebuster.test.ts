@@ -11,11 +11,11 @@ const scriptPath = fileURLToPath(
 );
 
 async function makePlugin(version: string) {
-  const root = await mkdtemp(`${tmpdir()}/codex-im-gateway-release-`);
+  const root = await mkdtemp(`${tmpdir()}/codex-im-release-`);
   await mkdir(`${root}/.codex-plugin`);
   await writeFile(
     `${root}/.codex-plugin/plugin.json`,
-    `{\n  "name": "codex-im-gateway",\n  "version": ${JSON.stringify(version)},\n  "keywords": ["codex", "telegram"]\n}\n`,
+    `{\n  "name": "codex-im",\n  "version": ${JSON.stringify(version)},\n  "keywords": ["codex", "telegram"]\n}\n`,
   );
   return root;
 }

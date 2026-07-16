@@ -8,7 +8,7 @@ import { eventStates } from "../core/types.js";
 import { openEventStore, openNotificationStore } from "../storage/open-store.js";
 import { notificationSourceFromRequestMeta } from "./request-source.js";
 
-const server = new McpServer({ name: "codex-im-gateway", version: "0.1.0" });
+const server = new McpServer({ name: "codex-im", version: "0.1.0" });
 
 server.registerTool(
   "gateway_health",

@@ -11,7 +11,7 @@ describe("renderLaunchdPlist", () => {
       dataDirectory: "/Users/tester/Library/Application Support/Gateway",
     });
 
-    expect(plist).toContain("com.qiyuey.codex-im-gateway");
+    expect(plist).toContain("com.qiyuey.codex-im");
     expect(plist).toContain("<key>KeepAlive</key><true/>");
     expect(plist).toContain("<key>RunAtLoad</key><true/>");
     expect(plist).toContain("/opt/homebrew/bin/node");

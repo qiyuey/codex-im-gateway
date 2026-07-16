@@ -18,6 +18,7 @@ export class ThreadWatchMonitor {
     private readonly workspaceAllowed: (cwd: string) => Promise<boolean> = async () => true,
     private readonly pollIntervalMs = 5_000,
     private readonly language: GatewayLanguage = "zh",
+    private readonly tasksWorkspace?: string,
   ) {}
 
   async initializeExistingSelections(): Promise<void> {
@@ -116,7 +117,7 @@ export class ThreadWatchMonitor {
   private async sendTurn(watch: ThreadWatchRecord, turn: CanonicalTurnResult): Promise<void> {
     const message = await this.api.sendRichMessage(
       Number(watch.chatId),
-      renderCompletion(turn, this.language),
+      renderCompletion(turn, this.language, turn.cwd === this.tasksWorkspace ? "Tasks" : undefined),
       watch.topicId,
       taskActionKeyboard(turn.threadId, this.language),
     );
@@ -139,7 +140,11 @@ export class ThreadWatchMonitor {
     if (!blocked) return;
     const message = await this.api.sendRichMessage(
       Number(watch.chatId),
-      renderWatchedBlocked(snapshot, this.language),
+      renderWatchedBlocked(
+        snapshot,
+        this.language,
+        snapshot.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+      ),
       watch.topicId,
       taskActionKeyboard(snapshot.threadId, this.language),
     );
