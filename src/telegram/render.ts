@@ -6,6 +6,7 @@ import type { NotificationSource, OutboundNotification } from "../core/types.js"
 import {
   escapeRichMarkdownText,
   prepareRichMarkdown,
+  prepareRichMarkdownParts,
   richMarkdownInlineCode,
 } from "./rich-markdown.js";
 import type { TelegramInlineButton } from "./types.js";
@@ -13,26 +14,38 @@ import type { TelegramInlineButton } from "./types.js";
 export const THREAD_PICKER_CALLBACK_DATA = "threads";
 export const TASK_SWITCH_CALLBACK_PREFIX = "switch:";
 
+const CODEX_APP_ONLY_DIRECTIVES = new Set([
+  "created-thread",
+  "git-stage",
+  "git-commit",
+  "git-create-branch",
+  "git-push",
+  "git-create-pr",
+]);
+
 export function renderCompletion(
   result: CanonicalTurnResult,
   language: GatewayLanguage,
   projectOverride?: string,
 ): string {
+  return renderCompletionParts(result, language, projectOverride)[0] ?? "";
+}
+
+export function renderCompletionParts(
+  result: CanonicalTurnResult,
+  language: GatewayLanguage,
+  projectOverride?: string,
+): readonly string[] {
   const icon = result.status === "completed" ? "✅" : result.status === "interrupted" ? "⏹" : "❌";
-  const body = result.finalMessage.trim() || translate(language, "noFinalMessage");
+  const body =
+    stripTrailingCodexAppDirectives(result.finalMessage) || translate(language, "noFinalMessage");
   const shortThread = result.threadId.slice(0, 8);
   const duration = formatDuration(result.durationMs);
-  const context =
-    `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectOverride ?? projectLabel(result.cwd))} · ` +
-    `**${translate(language, "thread")}:** ${richMarkdownInlineCode(shortThread)}` +
-    `${duration ? ` · **${translate(language, "duration")}:** ${escapeRichMarkdownText(duration)}` : ""}`;
-  const heading = translate(language, "taskStatus", {
-    task: translate(language, "task"),
-    status: statusHeading(result.status, language),
-  });
-  return prepareRichMarkdown(
-    `# ${icon} ${escapeRichMarkdownText(heading)}\n\n` + `${body}\n\n---\n\n${context}`,
-  );
+  const heading = [projectOverride ?? projectLabel(result.cwd), shortThread, duration]
+    .filter((value): value is string => Boolean(value))
+    .map(escapeRichMarkdownText)
+    .join(" · ");
+  return prepareRichMarkdownParts(`# ${icon} ${heading}\n\n${body}`);
 }
 
 export function renderStreaming(text: string, done: boolean, language: GatewayLanguage): string {
@@ -46,11 +59,18 @@ export function renderNotification(
   notification: OutboundNotification,
   language: GatewayLanguage,
 ): string {
+  return renderNotificationParts(notification, language)[0] ?? "";
+}
+
+export function renderNotificationParts(
+  notification: OutboundNotification,
+  language: GatewayLanguage,
+): readonly string[] {
   const source =
     notification.source.kind === "notification_only"
       ? `\n\n> ℹ️ ${translate(language, "notificationOnly")}`
       : "";
-  return prepareRichMarkdown(
+  return prepareRichMarkdownParts(
     `# 📬 ${escapeRichMarkdownText(notification.title)}\n\n` +
       `${notification.message.trim()}\n\n---\n\n` +
       `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectLabel(notification.cwd))}` +
@@ -72,11 +92,19 @@ export function renderWatchedBlocked(
   language: GatewayLanguage,
   projectOverride?: string,
 ): string {
+  return renderWatchedBlockedParts(snapshot, language, projectOverride)[0] ?? "";
+}
+
+export function renderWatchedBlockedParts(
+  snapshot: WatchedThreadSnapshot,
+  language: GatewayLanguage,
+  projectOverride?: string,
+): readonly string[] {
   const body =
     snapshot.latestTurn?.finalMessage.trim() ||
     snapshot.blockedGoal?.objective.trim() ||
     translate(language, "watchedTaskBlocked");
-  return prepareRichMarkdown(
+  return prepareRichMarkdownParts(
     `# ⚠️ ${translate(language, "statusBlocked")}\n\n` +
       `${body}\n\n---\n\n` +
       `**${translate(language, "project")}:** ${richMarkdownInlineCode(projectOverride ?? projectLabel(snapshot.cwd))} · ` +
@@ -153,15 +181,53 @@ export function renderUserInputAnswered(
   );
 }
 
-function statusHeading(status: CanonicalTurnResult["status"], language: GatewayLanguage): string {
-  if (status === "completed") return translate(language, "statusCompleted");
-  if (status === "interrupted") return translate(language, "statusInterrupted");
-  if (status === "failed") return translate(language, "statusFailed");
-  return translate(language, "statusRunning");
-}
-
 function projectLabel(cwd: string): string {
   return basename(cwd) || cwd;
+}
+
+function stripTrailingCodexAppDirectives(value: string): string {
+  const lines = value.replace(/\r\n?/g, "\n").split("\n");
+  const inFence = fencedCodeLines(lines);
+  let end = lines.length - 1;
+
+  while (end >= 0 && lines[end]?.trim() === "") end -= 1;
+
+  let removed = false;
+  while (end >= 0 && !inFence[end] && isCodexAppOnlyDirective(lines[end] ?? "")) {
+    removed = true;
+    end -= 1;
+    while (end >= 0 && lines[end]?.trim() === "") end -= 1;
+  }
+
+  return (removed ? lines.slice(0, end + 1).join("\n") : value).trim();
+}
+
+function isCodexAppOnlyDirective(line: string): boolean {
+  const match = /^::([a-z][a-z0-9-]*)\{.*\}[ \t]*$/.exec(line);
+  return match?.[1] !== undefined && CODEX_APP_ONLY_DIRECTIVES.has(match[1]);
+}
+
+function fencedCodeLines(lines: readonly string[]): boolean[] {
+  const result: boolean[] = [];
+  let fence: { readonly marker: "`" | "~"; readonly length: number } | null = null;
+
+  for (const [index, line] of lines.entries()) {
+    result[index] = fence !== null;
+    const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    const token = match?.[1];
+    if (!token) continue;
+
+    const marker = token[0] as "`" | "~";
+    if (!fence) {
+      fence = { marker, length: token.length };
+      continue;
+    }
+    if (marker === fence.marker && token.length >= fence.length && match?.[2]?.trim() === "") {
+      fence = null;
+    }
+  }
+
+  return result;
 }
 
 function formatDuration(durationMs: number | null | undefined): string | null {

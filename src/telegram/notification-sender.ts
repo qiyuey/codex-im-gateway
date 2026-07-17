@@ -1,7 +1,8 @@
 import type { GatewayLanguage } from "../core/i18n.js";
 import type { OutboundNotification } from "../core/types.js";
 import type { NotificationSender } from "../dispatcher/notification-dispatcher.js";
-import { notificationActionKeyboard, renderNotification } from "./render.js";
+import { notificationActionKeyboard, renderNotificationParts } from "./render.js";
+import { sendRichMessageParts } from "./rich-message-parts.js";
 import type { TelegramApi } from "./types.js";
 
 export class TelegramNotificationSender implements NotificationSender {
@@ -14,9 +15,10 @@ export class TelegramNotificationSender implements NotificationSender {
   async sendNotification(
     notification: OutboundNotification,
   ): Promise<{ readonly messageId: string }> {
-    const message = await this.api.sendRichMessage(
+    const message = await sendRichMessageParts(
+      this.api,
       this.chatId,
-      renderNotification(notification, this.language),
+      renderNotificationParts(notification, this.language),
       null,
       notificationActionKeyboard(notification.source, this.language),
     );

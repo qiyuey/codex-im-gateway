@@ -15,7 +15,7 @@ import { routeMessage } from "../router/router.js";
 import { isWorkspaceAllowed } from "../security/workspace.js";
 import type { GatewayStateStore } from "../storage/gateway-state-store.js";
 import {
-  renderCompletion,
+  renderCompletionParts,
   renderStreaming,
   renderUserInputAnswered,
   renderUserInputQuestion,
@@ -24,6 +24,7 @@ import {
   taskActionKeyboard,
   taskSwitchKeyboard,
 } from "./render.js";
+import { editRichMessageParts } from "./rich-message-parts.js";
 import {
   buildThreadProjectCatalog,
   NO_PROJECT_ID,
@@ -987,9 +988,10 @@ class StreamingEditor {
   async finish(result: Awaited<ReturnType<TelegramCodexService["runTurn"]>>): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    await this.api.editRichMessage(
+    await editRichMessageParts(
+      this.api,
       this.ref,
-      renderCompletion(
+      renderCompletionParts(
         {
           ...result,
           finalMessage: result.finalMessage || this.text,

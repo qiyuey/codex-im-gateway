@@ -33,7 +33,7 @@ describe("ThreadWatchMonitor", () => {
     expect(await monitor.runOnce(7_000)).toBe(true);
 
     expect(sendRichMessage).toHaveBeenCalledTimes(1);
-    expect(sendRichMessage.mock.calls[0]?.[1]).toContain("已完成");
+    expect(sendRichMessage.mock.calls[0]?.[1]).toContain("# ✅ workspace · thread\\-1");
     expect(sendRichMessage.mock.calls[0]?.[3]).toEqual([
       [
         { text: "切换到此任务", callbackData: "switch:thread-1" },

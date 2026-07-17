@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   renderCompletion,
+  renderCompletionParts,
   renderNotification,
   renderStreaming,
   taskActionKeyboard,
 } from "../src/telegram/render.js";
-import { prepareRichMarkdown } from "../src/telegram/rich-markdown.js";
+import { prepareRichMarkdown, prepareRichMarkdownParts } from "../src/telegram/rich-markdown.js";
 
 describe("Telegram rendering", () => {
   it("preserves Codex Markdown in streaming output", () => {
@@ -15,7 +16,7 @@ describe("Telegram rendering", () => {
     expect(rendered).toContain("- `code`");
   });
 
-  it("renders a bound task card with the outcome first and compact context", () => {
+  it("renders a bound task card with compact context in the heading", () => {
     const rendered = renderCompletion(
       {
         threadId: "thread-123456",
@@ -28,12 +29,10 @@ describe("Telegram rendering", () => {
       "en",
     );
 
-    expect(rendered).toContain("# ✅ Task completed");
-    expect(rendered).toContain(
-      "**Project:** `financial` · **Thread:** `thread-1` · **Duration:** 1m 5s",
-    );
+    expect(rendered).toContain("# ✅ financial · thread\\-1 · 1m 5s");
     expect(rendered).not.toContain("Reply to continue");
-    expect(rendered.indexOf("Done.")).toBeLessThan(rendered.indexOf("**Project:**"));
+    expect(rendered).not.toContain("**Project:**");
+    expect(rendered).not.toContain("---");
   });
 
   it("labels projectless task cards as Tasks and keeps reusable task actions", () => {
@@ -50,7 +49,7 @@ describe("Telegram rendering", () => {
       "Tasks",
     );
 
-    expect(rendered).toContain("**Project:** `Tasks`");
+    expect(rendered).toContain("# ✅ Tasks · thread\\-1");
     expect(taskActionKeyboard("thread-123456", "en")).toEqual([
       [
         { text: "Switch to this task", callbackData: "switch:thread-123456" },
@@ -227,7 +226,7 @@ describe("Telegram rendering", () => {
     expect(rendered).toContain('```ts\nconst value = "&lt;safe&gt;";\n```');
   });
 
-  it("renders the same task card in Chinese mode", () => {
+  it("renders the same compact task heading in Chinese mode", () => {
     const rendered = renderCompletion(
       {
         threadId: "thread-123456",
@@ -240,8 +239,97 @@ describe("Telegram rendering", () => {
       "zh",
     );
 
-    expect(rendered).toContain("# ✅ 任务已完成");
-    expect(rendered).toContain("**项目:** `financial` · **任务:** `thread-1` · **耗时:** 1m 5s");
+    expect(rendered).toContain("# ✅ financial · thread\\-1 · 1m 5s");
+    expect(rendered).not.toContain("任务已完成");
+  });
+
+  it("strips trailing Codex App-only directives from completion messages", () => {
+    const rendered = renderCompletion(
+      {
+        threadId: "019f6ceb-1234",
+        turnId: "turn-1",
+        status: "completed",
+        finalMessage: [
+          "发布完成。",
+          "",
+          '::git-stage{cwd="/workspace/financial"}',
+          "",
+          '::git-commit{cwd="/workspace/financial"}',
+          "",
+          '::git-push{cwd="/workspace/financial" branch="main"}',
+        ].join("\n"),
+        cwd: "/workspace/financial",
+        durationMs: 385_000,
+      },
+      "zh",
+    );
+
+    expect(rendered).toContain("# ✅ financial · 019f6ceb · 6m 25s");
+    expect(rendered).toContain("发布完成。");
+    expect(rendered).not.toContain("::git-stage");
+    expect(rendered).not.toContain("::git-commit");
+    expect(rendered).not.toContain("::git-push");
+  });
+
+  it("preserves unknown, inline, indented, and fenced directive-like content", () => {
+    const finalMessage = [
+      'Inline example: ::git-push{cwd="/workspace/project" branch="main"}',
+      "",
+      '    ::git-commit{cwd="/workspace/project"}',
+      "",
+      "```text",
+      '::git-stage{cwd="/workspace/project"}',
+      "```",
+      "",
+      '::artifact-template{skill_name="report"}',
+    ].join("\n");
+    const rendered = renderCompletion(
+      {
+        threadId: "thread-123456",
+        turnId: "turn-1",
+        status: "completed",
+        finalMessage,
+        cwd: "/workspace/project",
+        durationMs: null,
+      },
+      "en",
+    );
+
+    expect(rendered).toContain("Inline example: ::git-push");
+    expect(rendered).toContain("    ::git-commit");
+    expect(rendered).toContain("::git-stage");
+    expect(rendered).toContain("::artifact-template");
+  });
+
+  it("splits oversized completion bodies without dropping content", () => {
+    const body = "x".repeat(70_000);
+    const parts = renderCompletionParts(
+      {
+        threadId: "019f6ceb-1234",
+        turnId: "turn-1",
+        status: "completed",
+        finalMessage: body,
+        cwd: "/workspace/financial",
+        durationMs: 385_000,
+      },
+      "zh",
+    );
+
+    expect(parts.length).toBeGreaterThan(2);
+    expect(parts[0]).toContain("# ✅ financial · 019f6ceb · 6m 25s");
+    expect(parts.slice(1).every((part) => !part.includes("# ✅ financial"))).toBe(true);
+    expect(parts.every((part) => part.length <= 32_768)).toBe(true);
+    expect(parts.join("").split("x")).toHaveLength(body.length + 1);
+  });
+
+  it("closes and reopens fenced code across Rich Markdown parts", () => {
+    const code = "x".repeat(200);
+    const parts = prepareRichMarkdownParts(`\`\`\`ts\n${code}\n\`\`\``, 64);
+
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts.every((part) => part.length <= 64)).toBe(true);
+    expect(parts.every((part) => part.startsWith("```ts\n") && part.endsWith("\n```"))).toBe(true);
+    expect(parts.join("").split("x")).toHaveLength(code.length + 1);
   });
 
   it("caps Rich Markdown and closes a truncated code fence", () => {

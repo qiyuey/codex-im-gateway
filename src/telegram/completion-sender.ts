@@ -1,7 +1,8 @@
 import type { CanonicalTurnResult } from "../codex/app-server-client.js";
 import type { GatewayLanguage } from "../core/i18n.js";
 import type { CompletionSender } from "../dispatcher/dispatcher.js";
-import { renderCompletion, taskActionKeyboard } from "./render.js";
+import { renderCompletionParts, taskActionKeyboard } from "./render.js";
+import { sendRichMessageParts } from "./rich-message-parts.js";
 import type { TelegramApi } from "./types.js";
 
 export class TelegramCompletionSender implements CompletionSender {
@@ -16,9 +17,10 @@ export class TelegramCompletionSender implements CompletionSender {
     result: CanonicalTurnResult,
     _eventId: string,
   ): Promise<{ readonly messageId: string }> {
-    const message = await this.api.sendRichMessage(
+    const message = await sendRichMessageParts(
+      this.api,
       this.chatId,
-      renderCompletion(
+      renderCompletionParts(
         result,
         this.language,
         result.cwd === this.tasksWorkspace ? "Tasks" : undefined,

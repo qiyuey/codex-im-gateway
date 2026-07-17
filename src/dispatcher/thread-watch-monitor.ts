@@ -1,7 +1,12 @@
 import type { CanonicalTurnResult, WatchedThreadSnapshot } from "../codex/app-server-client.js";
 import type { GatewayLanguage } from "../core/i18n.js";
 import type { GatewayStateStore, ThreadWatchRecord } from "../storage/gateway-state-store.js";
-import { renderCompletion, renderWatchedBlocked, taskActionKeyboard } from "../telegram/render.js";
+import {
+  renderCompletionParts,
+  renderWatchedBlockedParts,
+  taskActionKeyboard,
+} from "../telegram/render.js";
+import { sendRichMessageParts } from "../telegram/rich-message-parts.js";
 import type { TelegramApi } from "../telegram/types.js";
 
 export interface WatchedThreadReader {
@@ -115,9 +120,14 @@ export class ThreadWatchMonitor {
   }
 
   private async sendTurn(watch: ThreadWatchRecord, turn: CanonicalTurnResult): Promise<void> {
-    const message = await this.api.sendRichMessage(
+    const message = await sendRichMessageParts(
+      this.api,
       Number(watch.chatId),
-      renderCompletion(turn, this.language, turn.cwd === this.tasksWorkspace ? "Tasks" : undefined),
+      renderCompletionParts(
+        turn,
+        this.language,
+        turn.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+      ),
       watch.topicId,
       taskActionKeyboard(turn.threadId, this.language),
     );
@@ -138,9 +148,10 @@ export class ThreadWatchMonitor {
   ): Promise<void> {
     const blocked = snapshot.blockedGoal;
     if (!blocked) return;
-    const message = await this.api.sendRichMessage(
+    const message = await sendRichMessageParts(
+      this.api,
       Number(watch.chatId),
-      renderWatchedBlocked(
+      renderWatchedBlockedParts(
         snapshot,
         this.language,
         snapshot.cwd === this.tasksWorkspace ? "Tasks" : undefined,

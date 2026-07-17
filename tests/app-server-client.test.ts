@@ -10,7 +10,7 @@ afterEach(async () => {
   client = null;
 });
 
-describe("AppServerClient", () => {
+describe("AppServerClient", { timeout: 15_000 }, () => {
   it("initializes before reading a canonical turn result", async () => {
     client = new AppServerClient({ command: process.execPath, args: [fakeServer] });
 

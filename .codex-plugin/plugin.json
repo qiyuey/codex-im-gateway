@@ -1,6 +1,6 @@
 {
   "name": "codex-im",
-  "version": "0.1.0+codex.20260716220909",
+  "version": "0.1.0+codex.20260717052607",
   "description": "Deliver Codex task results to IM platforms and continue their exact threads.",
   "author": {
     "name": "Codex IM contributors"
