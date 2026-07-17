@@ -205,4 +205,13 @@ export const migrations: readonly Migration[] = [
         ADD COLUMN protocol_version INTEGER NOT NULL DEFAULT 1 CHECK (protocol_version > 0);
     `,
   },
+  {
+    version: 7,
+    name: "one_shot_manual_route",
+    sql: `
+      ALTER TABLE context_state
+        ADD COLUMN route_next_message INTEGER NOT NULL DEFAULT 0
+        CHECK (route_next_message IN (0, 1));
+    `,
+  },
 ] as const;

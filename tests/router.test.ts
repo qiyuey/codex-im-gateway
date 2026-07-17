@@ -20,6 +20,17 @@ describe("routeMessage", () => {
     ).toEqual({ kind: "error", code: "unknown_reply" });
   });
 
+  it("uses a one-shot explicit route for an otherwise unknown reply", () => {
+    expect(
+      routeMessage({
+        replyToMessageId: "missing",
+        replyBinding: null,
+        explicitThreadId: "manually-selected",
+        activeThreadId: "active",
+      }),
+    ).toEqual({ kind: "routed", threadId: "manually-selected", source: "explicit" });
+  });
+
   it("requires an explicit selection when no route exists", () => {
     expect(routeMessage({})).toEqual({ kind: "error", code: "selection_required" });
   });

@@ -254,16 +254,20 @@ export class GatewayStateStore {
     topicId: string | null | undefined,
     threadId: string,
     now = Date.now(),
+    routeNextMessage = false,
   ): void {
     this.database.connection
       .prepare(`
-        INSERT INTO context_state (channel, chat_id, topic_id, active_codex_thread_id, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO context_state (
+          channel, chat_id, topic_id, active_codex_thread_id, updated_at, route_next_message
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(channel, chat_id, topic_id) DO UPDATE SET
           active_codex_thread_id = excluded.active_codex_thread_id,
-          updated_at = excluded.updated_at
+          updated_at = excluded.updated_at,
+          route_next_message = excluded.route_next_message
       `)
-      .run(channel, chatId, normalizeTopic(topicId), threadId, now);
+      .run(channel, chatId, normalizeTopic(topicId), threadId, now, routeNextMessage ? 1 : 0);
   }
 
   selectAndWatchThread(
@@ -276,9 +280,10 @@ export class GatewayStateStore {
       readonly blockedGoalUpdatedAt?: number | null;
     } = {},
     now = Date.now(),
+    routeNextMessage = false,
   ): void {
     this.database.transaction(() => {
-      this.setActiveThread(channel, chatId, topicId, threadId, now);
+      this.setActiveThread(channel, chatId, topicId, threadId, now, routeNextMessage);
       this.database.connection
         .prepare(`
           INSERT INTO thread_watches (
@@ -300,6 +305,27 @@ export class GatewayStateStore {
           baseline.blockedGoalUpdatedAt ?? null,
           now,
         );
+    });
+  }
+
+  takeNextMessageRoute(channel: string, chatId: string, topicId?: string | null): string | null {
+    return this.database.transaction(() => {
+      const row = this.database.connection
+        .prepare(`
+          SELECT active_codex_thread_id FROM context_state
+          WHERE channel = ? AND chat_id = ? AND topic_id = ? AND route_next_message = 1
+        `)
+        .get(channel, chatId, normalizeTopic(topicId)) as
+        | { active_codex_thread_id: string }
+        | undefined;
+      if (!row) return null;
+      this.database.connection
+        .prepare(`
+          UPDATE context_state SET route_next_message = 0
+          WHERE channel = ? AND chat_id = ? AND topic_id = ?
+        `)
+        .run(channel, chatId, normalizeTopic(topicId));
+      return row.active_codex_thread_id;
     });
   }
 

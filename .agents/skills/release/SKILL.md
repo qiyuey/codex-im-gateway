@@ -1,12 +1,13 @@
 ---
 name: release
-description: "Publish the Codex IM plugin through a guarded end-to-end release workflow: refresh the plugin cachebuster, reproduce CI locally, commit and push with Conventional Commits, reinstall the exact local plugin build, restart and verify the gateway daemon, and monitor the matching GitHub Actions run to completion. Use only when the user explicitly asks to release, publish, ship, or deploy the current repository changes; this skill performs git pushes, changes the locally installed plugin, and restarts the gateway daemon."
+description: "Publish the Codex IM plugin through a guarded end-to-end release workflow: refresh the plugin cachebuster, reproduce CI locally, commit and push with Conventional Commits, reinstall and verify the exact local plugin cache, restart and verify the gateway daemon and migrations, and monitor the matching GitHub Actions run to completion. Use only when the user explicitly asks to release, publish, ship, or deploy the current repository changes; this skill performs git pushes, changes the locally installed plugin, and restarts the gateway daemon."
 ---
 
 # Release Codex IM
 
 Run the stages below in order. Treat the commit SHA and manifest version as the release identity.
-Do not claim success unless local plugin application, daemon restart, and remote CI all succeed.
+Do not claim success unless exact-cache application, post-restart runtime activation, end-to-end
+delivery, and remote CI all succeed.
 
 ## 1. Guard the release scope
 
@@ -81,18 +82,27 @@ Local application must use the marketplace entry that already points at this che
    ```
 
 4. Re-read `codex plugin list --json`. Verify the plugin is installed and enabled, its resolved
-   source is this checkout, and its installed version equals `release_version`.
+   source is this checkout, and its installed version equals `release_version`. Capture the exact
+   installed cache root for that version. Read its `.codex-plugin/plugin.json` and require the same
+   version. Compare SHA-256 hashes between the checkout and installed cache for the manifest and
+   these runtime entry points:
+
+   - `dist/daemon.js`
+   - `dist/cli.js`
+   - `dist/mcp/server.js`
+   - `dist/hooks/stop.js`
+
+   Treat a missing file, version mismatch, or hash mismatch as a failed local application. The
+   marketplace source path alone does not prove that Codex copied the current build into its cache.
 5. Inspect lifecycle hooks with Codex `/hooks`. If the `codex-im` Stop hook is new or changed,
    review its exact source and command before trusting it. Require the reviewed command to invoke
    `$PLUGIN_ROOT/dist/hooks/stop.js` and use the expected Codex IM data directory. Do not trust
    unrelated pending hooks. Treat an untrusted or unverifiable Codex IM hook as a failed local
    application; a healthy daemon alone does not prove completion capture works.
-6. Run one minimal real Codex task and verify its top-level completion produces a new delivered
-   event in the gateway database with the same thread ID. This intentionally sends one Telegram
-   test card and validates the actual Stop hook -> queue -> daemon -> Telegram path; do not use
-   `gateway_enqueue` as a substitute.
-7. Only after the exact plugin and hook verification succeeds, restart the macOS launchd service
-   `gui/$(id -u)/com.qiyuey.codex-im`:
+6. Only after the exact plugin, cache, and hook verification succeeds, inspect the macOS launchd
+   service `gui/$(id -u)/com.qiyuey.codex-im`. Require its program arguments to invoke the current
+   repository's `dist/daemon.js`; a similarly named service or a daemon path from another checkout
+   does not apply this release. Then restart that exact service:
 
    ```bash
    service_target="gui/$(id -u)/com.qiyuey.codex-im"
@@ -125,10 +135,30 @@ Local application must use the marketplace entry that already points at this che
    - do not fall back to killing a process discovered by name or to restarting a similarly named
      service.
 
-8. If the exact service is unavailable or any restart verification fails, record local application
-   as failed and continue to CI monitoring so the remote result is still reported. Do not claim the
-   release succeeded.
-9. Tell the user to start a new Codex task to load the refreshed skill and MCP bundle.
+7. After the new PID is healthy, verify runtime activation rather than stopping at process health:
+
+   - re-read `schema_migrations` from the database path returned by `node dist/cli.js health`;
+   - if this release adds migrations, require every new migration version and name to be present;
+   - verify the concrete columns, indexes, or triggers introduced by those migrations with SQLite
+     schema inspection, and require `PRAGMA integrity_check` to return `ok`;
+   - inspect the installed daemon bundle for a distinctive symbol from the released behavior when
+     the release changes runtime routing or storage, so an old cached bundle cannot masquerade as
+     a successful restart;
+   - run `node dist/cli.js health` again and require `status = ok`, `runtime.running = true`,
+     `runtime.appServerConnected = true`, and `runtime.pid = after_pid`.
+
+   Poll briefly for migrations and heartbeat updates after restart instead of treating the first
+   pre-initialization snapshot as final. Do not report local activation from the base runtime
+   version alone because the cachebuster is intentionally outside that value.
+8. Run one minimal real Codex task only after the restart and migration checks pass. Verify its
+   top-level completion produces a new delivered event in the gateway database with the same
+   thread ID. This intentionally sends one Telegram test card and validates the installed Stop
+   hook -> queue -> newly restarted daemon -> Telegram path; do not use `gateway_enqueue` as a
+   substitute.
+9. If the exact cache, service, migration, health, or end-to-end verification fails, record local
+   application as failed and continue to CI monitoring so the remote result is still reported. Do
+   not claim the release succeeded.
+10. Tell the user to start a new Codex task to load the refreshed skill and MCP bundle.
 
 ## 5. Monitor the matching CI run
 
@@ -159,8 +189,10 @@ Report all of the following in the final response:
 
 - branch, commit SHA, Conventional Commit subject, and pushed remote;
 - manifest version and local plugin application status;
+- installed cache root and exact-artifact hash verification status;
 - lifecycle Hook trust and end-to-end completion delivery status;
 - daemon restart status, including the old and new PID when successful;
+- migration and post-restart runtime activation status;
 - CI run URL and terminal conclusion, or the precise reason no matching run exists;
 - the required new-task pickup step;
 - any partial failure after the push, without implying that the remote commit was rolled back.

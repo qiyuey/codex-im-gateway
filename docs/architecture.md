@@ -15,6 +15,11 @@ Codex operation starts. Ambiguity is an error.
 An active-thread pointer is only a convenience. The durable binding on a replied
 message is authoritative.
 
+Selecting **Switch to this task** also records a persisted one-shot route for the next inbound
+message. A valid durable reply binding still wins. If Telegram supplies an unrecognized reply
+identifier for that next message, the explicit selection is used once and then consumed; later
+unknown replies continue to fail closed.
+
 Outbound messages have a required identity kind. `bound_task` includes an exact
 thread/turn pair and may promise reply-to-continue; `notification_only` contains
 no source identity and must not imply that a reply resumes Codex. Identity is

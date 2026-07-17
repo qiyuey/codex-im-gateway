@@ -88,6 +88,14 @@ describe("GatewayStateStore", () => {
     });
   });
 
+  it("persists and consumes a manual next-message route once", () => {
+    state.selectAndWatchThread("telegram", "42", null, "thread-1", {}, 1, true);
+
+    expect(state.takeNextMessageRoute("telegram", "42")).toBe("thread-1");
+    expect(state.takeNextMessageRoute("telegram", "42")).toBeNull();
+    expect(state.getActiveThread("telegram", "42")).toBe("thread-1");
+  });
+
   it("deduplicates terminal deliveries across producers and stores thread mutes separately", () => {
     const target = { channel: "telegram", chatId: "42" };
 

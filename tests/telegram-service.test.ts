@@ -304,6 +304,18 @@ describe("TelegramService", () => {
     expect(api.edits).toHaveLength(0);
   });
 
+  it("routes the next unknown reply after an explicit task-card switch", async () => {
+    await service.handleCallbackQuery(callbackQuery({ messageId: "201", data: "switch:thread-1" }));
+
+    await service.handleMessage(
+      message({ replyToMessageId: "telegram-rich-message-alias", text: "$release" }),
+    );
+    await service.drain();
+
+    expect(codex.runTurn).toHaveBeenCalledWith("thread-1", "$release", expect.any(Function));
+    expect(state.takeNextMessageRoute("telegram", "42")).toBeNull();
+  });
+
   it("preserves an already-delivered legacy task card when switching", async () => {
     state.bindMessage("telegram", "42", "202", "legacy-thread", "turn-1");
 

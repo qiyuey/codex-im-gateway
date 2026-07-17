@@ -202,6 +202,8 @@ export class TelegramService {
         query.topicId,
         threadId,
         watchBaseline(snapshot),
+        Date.now(),
+        true,
       );
       await this.api.answerCallbackQuery(
         query.queryId,
@@ -765,12 +767,14 @@ export class TelegramService {
       ? this.state.findMessageBinding("telegram", chatId, message.replyToMessageId)
       : null;
     const active = this.state.getActiveThread("telegram", chatId, message.topicId);
+    const oneShotRoute = this.state.takeNextMessageRoute("telegram", chatId, message.topicId);
     const decision = routeMessage({
       ...(message.replyToMessageId ? { replyToMessageId: message.replyToMessageId } : {}),
       replyBinding: replyBinding
         ? { codexThreadId: replyBinding.codexThreadId, codexTurnId: replyBinding.codexTurnId }
         : null,
       topicBinding: message.topicId && active ? { codexThreadId: active, codexTurnId: null } : null,
+      explicitThreadId: oneShotRoute,
       activeThreadId: active,
     });
     if (decision.kind === "error") {

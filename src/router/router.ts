@@ -21,8 +21,13 @@ export type RouteDecision =
 
 export function routeMessage(input: RouteInput): RouteDecision {
   if (input.replyToMessageId) {
-    if (!input.replyBinding) return { kind: "error", code: "unknown_reply" };
-    return { kind: "routed", threadId: input.replyBinding.codexThreadId, source: "reply" };
+    if (input.replyBinding) {
+      return { kind: "routed", threadId: input.replyBinding.codexThreadId, source: "reply" };
+    }
+    if (input.explicitThreadId) {
+      return { kind: "routed", threadId: input.explicitThreadId, source: "explicit" };
+    }
+    return { kind: "error", code: "unknown_reply" };
   }
   if (input.topicBinding) {
     return { kind: "routed", threadId: input.topicBinding.codexThreadId, source: "topic" };
