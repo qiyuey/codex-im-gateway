@@ -45,6 +45,8 @@ interface PendingRequest {
   readonly timer: NodeJS.Timeout;
 }
 
+const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export interface AppServerClientOptions {
   readonly command?: string;
   readonly args?: readonly string[];
@@ -170,11 +172,7 @@ export class AppServerClient extends EventEmitter {
     const turn = response.thread.turns.find((candidate) => candidate.id === turnId);
     if (!turn) throw new Error(`Turn ${turnId} is unavailable in thread ${threadId}`);
 
-    const agentMessages = turn.items.filter(
-      (item): item is Extract<(typeof turn.items)[number], { type: "agentMessage" }> =>
-        item.type === "agentMessage",
-    );
-    const finalMessage = agentMessages.at(-1)?.text ?? "";
+    const finalMessage = finalAgentMessage(turn) ?? turn.error?.message ?? "";
     const status = turn.status === "inProgress" ? "in_progress" : turn.status;
     return {
       threadId: response.thread.id,
@@ -194,10 +192,12 @@ export class AppServerClient extends EventEmitter {
       this.request<ThreadReadResponse>("thread/read", threadParams),
       this.request<ThreadGoalGetResponse>("thread/goal/get", goalParams),
     ]);
-    const latest = threadResponse.thread.turns.at(-1) ?? null;
-    const latestTerminal = threadResponse.thread.turns.findLast(
-      (turn) => turn.status !== "inProgress",
+    const visibleTurns = threadResponse.thread.turns.filter(
+      (turn) =>
+        isCanonicalCodexTurn(turn) && (turn.status === "inProgress" || isStableTerminalTurn(turn)),
     );
+    const latest = visibleTurns.at(-1) ?? null;
+    const latestTerminal = visibleTurns.findLast((turn) => isStableTerminalTurn(turn));
     const goal = goalResponse.goal;
     return {
       threadId: threadResponse.thread.id,
@@ -451,16 +451,41 @@ function mapTurnResult(
   streamedText: string,
   cwd: string,
 ): CanonicalTurnResult {
-  const agentMessages = turn.items.filter(
-    (item): item is Extract<(typeof turn.items)[number], { type: "agentMessage" }> =>
-      item.type === "agentMessage",
-  );
   return {
     threadId,
     turnId: turn.id,
     status: turn.status === "inProgress" ? "in_progress" : turn.status,
-    finalMessage: agentMessages.at(-1)?.text ?? turn.error?.message ?? streamedText,
+    finalMessage: finalAgentMessage(turn) ?? turn.error?.message ?? streamedText,
     cwd,
     durationMs: turn.durationMs ?? null,
   };
+}
+
+function isCanonicalCodexTurn(turn: Turn): boolean {
+  return UUID_V7_PATTERN.test(turn.id);
+}
+
+function isStableTerminalTurn(turn: Turn): boolean {
+  if (
+    !isCanonicalCodexTurn(turn) ||
+    turn.status === "inProgress" ||
+    typeof turn.completedAt !== "number"
+  ) {
+    return false;
+  }
+  if (turn.status === "completed") return Boolean(finalAgentMessage(turn)?.trim());
+  if (turn.status === "failed")
+    return Boolean(turn.error?.message || finalAgentMessage(turn)?.trim());
+  return true;
+}
+
+function finalAgentMessage(turn: Turn): string | null {
+  const messages = turn.items.filter(
+    (item): item is Extract<(typeof turn.items)[number], { type: "agentMessage" }> =>
+      item.type === "agentMessage",
+  );
+  const explicitFinal = messages.findLast((message) => message.phase === "final_answer");
+  if (explicitFinal) return explicitFinal.text;
+  if (messages.some((message) => message.phase !== null)) return null;
+  return messages.at(-1)?.text ?? null;
 }

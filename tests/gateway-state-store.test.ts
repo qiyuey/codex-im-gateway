@@ -53,6 +53,18 @@ describe("GatewayStateStore", () => {
     expect(state.getThreadWatch("telegram", "42")).toBeNull();
   });
 
+  it("conditionally detaches only the expected active thread", () => {
+    state.selectAndWatchThread("telegram", "42", null, "thread-1");
+
+    expect(state.detachIfActiveThread("telegram", "42", null, "thread-old")).toBe(false);
+    expect(state.getActiveThread("telegram", "42")).toBe("thread-1");
+    expect(state.getThreadWatch("telegram", "42")?.codexThreadId).toBe("thread-1");
+
+    expect(state.detachIfActiveThread("telegram", "42", null, "thread-1")).toBe(true);
+    expect(state.getActiveThread("telegram", "42")).toBeNull();
+    expect(state.getThreadWatch("telegram", "42")).toBeNull();
+  });
+
   it("replaces one watched thread and acknowledges only the current watch", () => {
     state.selectAndWatchThread("telegram", "42", null, "thread-1", { turnId: "turn-1" }, 1);
     state.selectAndWatchThread("telegram", "42", null, "thread-2", { turnId: "turn-2" }, 2);

@@ -149,6 +149,9 @@ read, the gateway does not infer projects from task directories; tasks remain av
 - a normal message continues the active task;
 - replying to a result or question card continues the task bound to that card;
 - selecting another task changes only where new plain messages are routed;
+- only `/use`, `/new`, and explicit **Switch to this task** actions change the active task;
+- if the active task disappears or leaves the workspace allowlist, the gateway clears the stale
+  selection and offers the task picker instead of retaining an unusable route;
 - completions from other tasks continue to arrive with **Switch to this task**;
 - `/mute` stops automatic completion notifications for the active task;
 - `/unmute` restores them;

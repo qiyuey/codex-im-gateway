@@ -209,6 +209,18 @@ describe("ThreadWatchMonitor", () => {
 
     expect(sendRichMessage).not.toHaveBeenCalled();
     expect(state.getThreadWatch("telegram", "42")).toBeNull();
+    expect(state.getActiveThread("telegram", "42")).toBeNull();
+  });
+
+  it("removes a stale active selection during startup initialization", async () => {
+    state.clearThreadWatch("telegram", "42");
+    const reader = { readThreadSnapshot: vi.fn(async () => snapshot()) };
+    const monitor = new ThreadWatchMonitor(state, reader, api, async () => false, 0);
+
+    await monitor.initializeExistingSelections();
+
+    expect(state.getActiveThread("telegram", "42")).toBeNull();
+    expect(state.getThreadWatch("telegram", "42")).toBeNull();
   });
 
   it("upgrades an existing active selection with a historical baseline", async () => {

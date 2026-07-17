@@ -394,6 +394,30 @@ export class GatewayStateStore {
     });
   }
 
+  detachIfActiveThread(
+    channel: string,
+    chatId: string,
+    topicId: string | null | undefined,
+    threadId: string,
+  ): boolean {
+    return this.database.transaction(() => {
+      const normalizedTopic = normalizeTopic(topicId);
+      const result = this.database.connection
+        .prepare(`
+          DELETE FROM context_state
+          WHERE channel = ? AND chat_id = ? AND topic_id = ?
+            AND active_codex_thread_id = ?
+        `)
+        .run(channel, chatId, normalizedTopic, threadId);
+      if (result.changes === 1) {
+        this.database.connection
+          .prepare("DELETE FROM thread_watches WHERE channel = ? AND chat_id = ? AND topic_id = ?")
+          .run(channel, chatId, normalizedTopic);
+      }
+      return result.changes === 1;
+    });
+  }
+
   listRecentBindings(channel: string, chatId: string, limit = 10): readonly MessageBindingRecord[] {
     const rows = this.database.connection
       .prepare(`

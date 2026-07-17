@@ -782,14 +782,28 @@ export class TelegramService {
       return;
     }
 
-    const resumed = await this.appServer.resumeThread(decision.threadId);
-    if (!(await isWorkspaceAllowed(resumed.cwd, authorizedWorkspaces(this.config)))) {
-      await this.api.sendTextMessage(
-        message.chatId,
-        this.text("workspaceNotAllowed"),
-        message.topicId,
-      );
+    let resumed: Awaited<ReturnType<TelegramCodexService["resumeThread"]>>;
+    try {
+      resumed = await this.appServer.resumeThread(decision.threadId);
+    } catch {
+      await this.rejectUnavailableRoute(message, decision, "unavailable");
       return;
+    }
+    if (!(await isWorkspaceAllowed(resumed.cwd, authorizedWorkspaces(this.config)))) {
+      await this.rejectUnavailableRoute(message, decision, "workspace_not_allowed");
+      return;
+    }
+    if (!this.queue.isBusy(decision.threadId)) {
+      try {
+        const snapshot = await this.appServer.readThreadSnapshot(decision.threadId);
+        if (snapshot.latestTurn?.status === "in_progress") {
+          await this.api.sendTextMessage(message.chatId, this.text("taskBusy"), message.topicId);
+          return;
+        }
+      } catch {
+        await this.rejectUnavailableRoute(message, decision, "unavailable");
+        return;
+      }
     }
 
     const placeholder = await this.api.sendTextMessage(
@@ -825,15 +839,6 @@ export class TelegramService {
     this.activeTurnContexts.set(threadId, context);
     try {
       const result = await this.appServer.runTurn(threadId, prompt, (text) => editor.update(text));
-      this.state.selectAndWatchThread(
-        "telegram",
-        String(placeholder.chatId),
-        placeholder.topicId,
-        threadId,
-        {
-          turnId: result.turnId,
-        },
-      );
       await editor.finish(result);
       this.state.recordTerminalDelivery(
         {
@@ -846,6 +851,15 @@ export class TelegramService {
         "telegram_turn",
         null,
         placeholder.messageId,
+      );
+      this.state.acknowledgeWatchedState(
+        {
+          channel: "telegram",
+          chatId: String(placeholder.chatId),
+          topicId: placeholder.topicId,
+        },
+        threadId,
+        { turnId: result.turnId },
       );
       try {
         const snapshot = await this.appServer.readThreadSnapshot(threadId);
@@ -870,6 +884,33 @@ export class TelegramService {
         this.activeTurnContexts.delete(threadId);
       }
     }
+  }
+
+  private async rejectUnavailableRoute(
+    message: TelegramMessage,
+    decision: Extract<ReturnType<typeof routeMessage>, { kind: "routed" }>,
+    reason: "unavailable" | "workspace_not_allowed",
+  ): Promise<void> {
+    const selectionBacked = decision.source === "active" || decision.source === "topic";
+    const detached =
+      selectionBacked &&
+      this.state.detachIfActiveThread(
+        "telegram",
+        String(message.chatId),
+        message.topicId,
+        decision.threadId,
+      );
+    const text = detached
+      ? this.text(reason === "unavailable" ? "activeTaskUnavailable" : "activeWorkspaceNotAllowed")
+      : this.text(reason === "unavailable" ? "threadUnavailable" : "workspaceNotAllowed");
+    await this.api.sendTextMessage(
+      message.chatId,
+      text,
+      message.topicId,
+      detached
+        ? [[{ text: this.text("chooseTask"), callbackData: THREAD_PICKER_CALLBACK_DATA }]]
+        : undefined,
+    );
   }
 
   private async resolveThread(prefix: string) {

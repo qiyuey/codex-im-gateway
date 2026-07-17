@@ -32,21 +32,50 @@ lines.on("line", (line) => {
             cwd: "/workspace/example",
             turns: [
               {
-                id: "turn-1",
+                id: "019f0000-0000-7000-8000-000000000001",
                 status: "completed",
+                completedAt: 100,
                 items: [
                   {
                     type: "agentMessage",
                     id: "message-1",
                     text: "draft",
-                    phase: null,
+                    phase: "commentary",
                     memoryCitation: null,
                   },
                   {
                     type: "agentMessage",
                     id: "message-2",
                     text: "final answer",
-                    phase: null,
+                    phase: "final_answer",
+                    memoryCitation: null,
+                  },
+                ],
+              },
+              {
+                id: "019f0000-0000-7000-8000-000000000002",
+                status: "completed",
+                completedAt: 101,
+                items: [
+                  {
+                    type: "agentMessage",
+                    id: "message-commentary-only",
+                    text: "still working",
+                    phase: "commentary",
+                    memoryCitation: null,
+                  },
+                ],
+              },
+              {
+                id: "rollout-614",
+                status: "completed",
+                completedAt: null,
+                items: [
+                  {
+                    type: "agentMessage",
+                    id: "message-rollout",
+                    text: "release review continues",
+                    phase: "commentary",
                     memoryCitation: null,
                   },
                 ],

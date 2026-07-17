@@ -31,7 +31,15 @@ export class ThreadWatchMonitor {
       if (this.state.getThreadWatch(active.channel, active.chatId, active.topicId)) continue;
       try {
         const snapshot = await this.reader.readThreadSnapshot(active.codexThreadId);
-        if (!(await this.workspaceAllowed(snapshot.cwd))) continue;
+        if (!(await this.workspaceAllowed(snapshot.cwd))) {
+          this.state.detachIfActiveThread(
+            active.channel,
+            active.chatId,
+            active.topicId,
+            active.codexThreadId,
+          );
+          continue;
+        }
         this.state.selectAndWatchThread(
           active.channel,
           active.chatId,
@@ -60,7 +68,12 @@ export class ThreadWatchMonitor {
     try {
       const snapshot = await this.reader.readThreadSnapshot(watch.codexThreadId);
       if (!(await this.workspaceAllowed(snapshot.cwd))) {
-        this.state.clearThreadWatch(watch.channel, watch.chatId, watch.topicId);
+        this.state.detachIfActiveThread(
+          watch.channel,
+          watch.chatId,
+          watch.topicId,
+          watch.codexThreadId,
+        );
         return;
       }
       const current = this.state.getThreadWatch(watch.channel, watch.chatId, watch.topicId);

@@ -61,6 +61,7 @@ const zh = {
   switchTask: "切换到此任务",
   switchedAndWatching: "已切换到任务 {thread}。",
   task: "任务",
+  taskBusy: "此任务当前正在执行，请等待完成后再发送消息。",
   taskStatus: "{task}{status}",
   taskNotWatched: "此任务当前未被关注。",
   taskUnavailable: "此任务已不可用。",
@@ -77,6 +78,9 @@ const zh = {
   watchedTaskBlocked: "被关注的 Codex 任务受阻。",
   watching: "通知开启",
   workspaceNotAllowed: "此任务的工作区不在允许范围内。",
+  activeTaskUnavailable: "当前任务已失效，已清除任务选择。请重新选择任务后再发送消息。",
+  activeWorkspaceNotAllowed:
+    "当前任务的工作区已不在允许范围内，已清除任务选择。请重新选择任务后再发送消息。",
   cancelled: "✖️ 取消",
   mutedKeepCurrent: "已停止此任务的完成通知。",
   newTaskFailed: "❌ 无法创建新任务，请检查本地网关日志。",
@@ -148,6 +152,7 @@ const en = {
   switchTask: "Switch to this task",
   switchedAndWatching: "Switched to task {thread}.",
   task: "Task",
+  taskBusy: "This task is currently running. Wait for it to finish before sending another message.",
   taskStatus: "{task} {status}",
   taskNotWatched: "This task is not currently watched.",
   taskUnavailable: "This task is no longer available.",
@@ -164,6 +169,10 @@ const en = {
   watchedTaskBlocked: "The watched Codex task is blocked.",
   watching: "notifications on",
   workspaceNotAllowed: "That task's workspace is not allowed.",
+  activeTaskUnavailable:
+    "The current task is unavailable, so its selection was cleared. Choose a task before sending another message.",
+  activeWorkspaceNotAllowed:
+    "The current task's workspace is no longer allowed, so its selection was cleared. Choose a task before sending another message.",
   cancelled: "✖️ Cancel",
   mutedKeepCurrent: "Completion notifications stopped for this task.",
   newTaskFailed: "❌ The new task could not be created. Check the local gateway logs.",

@@ -116,6 +116,7 @@ describe("TelegramService", () => {
         "new-turn",
       ),
     ).toBe(placeholder.messageId);
+    expect(state.getActiveThread("telegram", "42")).toBe("active-thread");
   });
 
   it("does not fall back from an unknown replied message", async () => {
@@ -130,11 +131,92 @@ describe("TelegramService", () => {
 
   it("rejects a durable binding whose resumed workspace is not allowed", async () => {
     state.bindMessage("telegram", "42", "50", "outside-thread", "old-turn");
+    state.setActiveThread("telegram", "42", null, "active-thread");
     codex.resumeThread.mockResolvedValue({ cwd: "/workspace/not-allowed" });
     await service.handleMessage(message({ replyToMessageId: "50" }));
 
     expect(codex.runTurn).not.toHaveBeenCalled();
     expect(api.sent[0]?.content).toContain("工作区不在允许范围内");
+    expect(state.getActiveThread("telegram", "42")).toBe("active-thread");
+  });
+
+  it("clears a stale active selection and offers task selection", async () => {
+    state.selectAndWatchThread("telegram", "42", null, "stale-thread");
+    codex.resumeThread.mockResolvedValue({ cwd: "/workspace/not-allowed" });
+
+    await service.handleMessage(message({ text: "$release" }));
+
+    expect(codex.runTurn).not.toHaveBeenCalled();
+    expect(state.getActiveThread("telegram", "42")).toBeNull();
+    expect(state.getThreadWatch("telegram", "42")).toBeNull();
+    expect(api.sent[0]).toMatchObject({
+      content: expect.stringContaining("已清除任务选择"),
+      inlineKeyboard: [[{ text: "选择任务", callbackData: "threads" }]],
+    });
+  });
+
+  it("clears an unavailable active selection and offers task selection", async () => {
+    state.selectAndWatchThread("telegram", "42", null, "missing-thread");
+    codex.resumeThread.mockRejectedValue(new Error("thread unavailable"));
+
+    await service.handleMessage(message({ text: "continue" }));
+
+    expect(state.getActiveThread("telegram", "42")).toBeNull();
+    expect(api.sent[0]?.content).toContain("当前任务已失效");
+    expect(api.sent[0]?.inlineKeyboard?.[0]?.[0]?.callbackData).toBe("threads");
+  });
+
+  it("does not start a concurrent turn while another client is using the task", async () => {
+    state.selectAndWatchThread("telegram", "42", null, "active-thread");
+    codex.readThreadSnapshot.mockResolvedValue({
+      threadId: "active-thread",
+      cwd: directory,
+      latestTurn: {
+        threadId: "active-thread",
+        turnId: "019f0000-0000-7000-8000-000000000001",
+        status: "in_progress",
+        finalMessage: "working",
+        cwd: directory,
+      },
+      latestTerminalTurn: null,
+      latestTerminalTurnId: null,
+      blockedGoal: null,
+    });
+
+    await service.handleMessage(message({ text: "$release" }));
+
+    expect(codex.runTurn).not.toHaveBeenCalled();
+    expect(api.sent[0]?.content).toContain("当前正在执行");
+    expect(state.getActiveThread("telegram", "42")).toBe("active-thread");
+  });
+
+  it("continues to serialize messages already queued by Telegram", async () => {
+    state.selectAndWatchThread("telegram", "42", null, "active-thread");
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    codex.runTurn.mockImplementation(async (threadId: string, text: string) => {
+      if (text === "first") await firstGate;
+      return {
+        threadId,
+        turnId: `turn-${text}`,
+        status: "completed" as const,
+        finalMessage: `finished ${text}`,
+        cwd: directory,
+      };
+    });
+
+    await service.handleMessage(message({ text: "first" }));
+    await vi.waitFor(() => expect(codex.runTurn).toHaveBeenCalledTimes(1));
+    await service.handleMessage(message({ text: "second" }));
+
+    expect(codex.runTurn).toHaveBeenCalledTimes(1);
+    releaseFirst();
+    await service.drain();
+
+    expect(codex.runTurn.mock.calls.map((call) => call[1])).toEqual(["first", "second"]);
+    expect(state.getThreadWatch("telegram", "42")?.lastDeliveredTurnId).toBe("turn-second");
   });
 
   it("shows directory choices before creating a task", async () => {
