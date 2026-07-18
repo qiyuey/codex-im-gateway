@@ -114,8 +114,9 @@ node dist/cli.js app-server-health
 
 ### 在 Telegram 接收任务结果
 
-顶层 Codex turn 会自动投递。只有工作流需要自定义结果消息时，才要求 Codex
-把 `$telegram-delivery` 作为最后一步：
+交互式顶层 Codex turn 会自动投递。Scheduled/cron 任务默认静默；在 Telegram
+手动选择该任务会恢复其自动完成通知，工作流也可以把 `$telegram-delivery`
+作为最后一步显式投递自定义结果：
 
 ```text
 运行测试，汇总所有失败，并把 $telegram-delivery 作为最后一步，将结果发送到 Telegram。

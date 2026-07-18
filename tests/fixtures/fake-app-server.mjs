@@ -30,6 +30,7 @@ lines.on("line", (line) => {
           thread: {
             id: message.params.threadId,
             cwd: "/workspace/example",
+            threadSource: "interactive",
             turns: [
               {
                 id: "019f0000-0000-7000-8000-000000000001",

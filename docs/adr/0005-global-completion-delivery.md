@@ -31,6 +31,13 @@ Keep the daemon as the only network sender. It resolves the exact thread and
 turn through app-server, checks the workspace allowlist, and retains the
 existing lease, retry, and dead-letter behavior.
 
+Scheduled automation threads are identified from Codex's trusted
+`threadSource: "automation"` metadata. Their automatic completion events are
+acknowledged without delivery by default. A user explicitly selecting the task
+from Telegram creates a watch and opts that task into automatic delivery;
+explicit `$telegram-delivery` notifications remain independent and continue to
+be delivered.
+
 Record every delivered terminal result under one channel-scoped identity:
 
 ```text
@@ -56,8 +63,9 @@ per-thread mute preferences independently:
 
 ## Consequences
 
-- Every allowed top-level Desktop, CLI, and Scheduled turn is eligible for one
-  Telegram result card without prompt opt-in.
+- Every allowed top-level interactive Desktop and CLI turn is eligible for one
+  Telegram result card without prompt opt-in. Scheduled turns are silent unless
+  explicitly selected from Telegram or delivered through `$telegram-delivery`.
 - Selecting a task affects message routing only; background task completions do
   not steal the active Telegram context.
 - Hook execution remains local, fast, durable, and independent of Telegram

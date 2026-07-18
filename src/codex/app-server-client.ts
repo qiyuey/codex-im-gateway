@@ -60,6 +60,7 @@ export interface CanonicalTurnResult {
   readonly status: "completed" | "failed" | "interrupted" | "in_progress";
   readonly finalMessage: string;
   readonly cwd: string;
+  readonly threadSource?: string | null;
   readonly durationMs?: number | null;
 }
 
@@ -180,6 +181,7 @@ export class AppServerClient extends EventEmitter {
       status,
       finalMessage,
       cwd: response.thread.cwd,
+      threadSource: response.thread.threadSource,
       durationMs: turn.durationMs ?? null,
     };
   }

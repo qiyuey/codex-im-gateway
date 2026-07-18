@@ -55,6 +55,10 @@ export class Dispatcher {
       }
       const result = await this.appServer.readTurn(event.codexThreadId, event.codexTurnId);
       if (result.status === "in_progress") throw new Error("Codex turn is still in progress");
+      if (result.threadSource === "automation" && !this.isExplicitlyWatched(result.threadId)) {
+        this.events.markDelivered(event.id, event.leaseToken);
+        return true;
+      }
       if (!(await this.workspaceAllowed(result.cwd))) {
         this.events.markFailed(event.id, event.leaseToken, "workspace not allowed", {
           maxAttempts: 1,
@@ -75,5 +79,12 @@ export class Dispatcher {
       );
     }
     return true;
+  }
+
+  private isExplicitlyWatched(threadId: string): boolean {
+    return (
+      this.state.getThreadWatch(this.target.channel, this.target.chatId, this.target.topicId)
+        ?.codexThreadId === threadId
+    );
   }
 }

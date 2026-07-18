@@ -124,6 +124,55 @@ describe("Dispatcher", () => {
     expect(sender.sendCompletion).not.toHaveBeenCalled();
   });
 
+  it("keeps automation completions silent by default", async () => {
+    enqueue();
+    const reader = {
+      readTurn: vi.fn(async () => ({
+        threadId: "thread-1",
+        turnId: "turn-1",
+        status: "completed" as const,
+        finalMessage: "scheduled result",
+        cwd: "/workspace",
+        threadSource: "automation",
+      })),
+    };
+    const sender = { sendCompletion: vi.fn() };
+    const dispatcher = new Dispatcher(events, state, reader, sender, {
+      channel: "telegram",
+      chatId: "42",
+    });
+
+    await dispatcher.runOnce(1_100);
+
+    expect(events.counts().delivered).toBe(1);
+    expect(sender.sendCompletion).not.toHaveBeenCalled();
+  });
+
+  it("delivers automation completions after the task is explicitly selected", async () => {
+    enqueue();
+    state.selectAndWatchThread("telegram", "42", null, "thread-1");
+    const reader = {
+      readTurn: vi.fn(async () => ({
+        threadId: "thread-1",
+        turnId: "turn-1",
+        status: "completed" as const,
+        finalMessage: "scheduled result",
+        cwd: "/workspace",
+        threadSource: "automation",
+      })),
+    };
+    const sender = { sendCompletion: vi.fn(async () => ({ messageId: "201" })) };
+    const dispatcher = new Dispatcher(events, state, reader, sender, {
+      channel: "telegram",
+      chatId: "42",
+    });
+
+    await dispatcher.runOnce(1_100);
+
+    expect(events.counts().delivered).toBe(1);
+    expect(sender.sendCompletion).toHaveBeenCalledOnce();
+  });
+
   it("dead-letters an unsupported plugin ingress protocol without reading Codex", async () => {
     events.enqueue(
       {

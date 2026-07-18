@@ -127,8 +127,10 @@ project and task, and send a short message. The reply should continue that task.
 
 ### Receive task results in Telegram
 
-Top-level Codex turns are delivered automatically. Use `$telegram-delivery`
-only when a workflow needs a custom explicit result message:
+Interactive top-level Codex turns are delivered automatically. Scheduled/cron
+tasks stay silent by default; selecting one from Telegram enables its automatic
+completion notifications. A workflow can also use `$telegram-delivery` for a
+custom explicit result message:
 
 ```text
 Run the test suite, summarize any failures, and use $telegram-delivery as the

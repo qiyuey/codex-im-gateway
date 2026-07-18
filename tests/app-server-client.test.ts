@@ -25,6 +25,7 @@ describe("AppServerClient", { timeout: 15_000 }, () => {
       status: "completed",
       finalMessage: "final answer",
       cwd: "/workspace/example",
+      threadSource: "interactive",
       durationMs: null,
     });
   });
