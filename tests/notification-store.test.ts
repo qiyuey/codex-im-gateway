@@ -56,6 +56,22 @@ describe("OutboundNotificationStore", () => {
     });
   });
 
+  it("persists an inherited thread binding without inventing a turn", () => {
+    const notification = store.enqueue({
+      idempotencyKey: "thread:thread-1",
+      channel: "telegram",
+      cwd: "/workspace/example",
+      title: "Thread result",
+      message: "Done.",
+      source: { kind: "bound_thread", codexThreadId: "thread-1" },
+    });
+
+    expect(notification.source).toEqual({
+      kind: "bound_thread",
+      codexThreadId: "thread-1",
+    });
+  });
+
   it("redacts credentials from retry errors", () => {
     enqueue();
     const leased = store.leaseNext({ now: 1_100 });

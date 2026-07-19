@@ -160,8 +160,10 @@ read, the gateway does not infer projects from task directories; tasks remain av
 - `/detach` clears only the active task selection.
 
 Reply routing is durable: a reply never silently falls back to an unrelated
-active task. A notification without trusted Codex task metadata is clearly shown
-as an independent notification and offers a task picker instead.
+active task. A trusted host-inherited task ID provides a direct switch action
+even without turn metadata. A notification without trusted task identity, or
+with conflicting identity, is clearly shown as an independent notification and
+offers a task picker instead.
 
 ### Telegram commands
 
@@ -249,8 +251,10 @@ delivery, mute, selected-task monitor, and message-binding state.
 
 **Why did I receive an “independent notification”?**
 
-Codex did not provide consistent trusted thread/turn metadata for that delivery.
-The gateway sends the result but does not guess which task replies should enter.
+Codex did not provide trusted task identity for that delivery, or the host
+identities conflicted. The gateway sends the result but does not guess which
+task replies should enter. If only turn metadata is missing, a trusted inherited
+thread still provides a direct switch action.
 
 ## Project documentation
 

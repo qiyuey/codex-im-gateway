@@ -17,12 +17,16 @@ Codex turns started through the gateway can also issue the experimental
 Represent notification identity as a required discriminated source:
 
 - `bound_task` requires an exact Codex thread and turn identifier;
+- `bound_thread` requires an exact host-inherited Codex thread identifier and
+  supports direct switching without turn-level duplicate coordination;
 - `notification_only` carries no task identity and must say that replies do not
   continue a Codex task.
 
-For `telegram_deliver`, accept identity only from request metadata outside the
-model-visible arguments. Require the top-level `threadId`, nested `thread_id`,
-and nested `session_id` to match, and require a valid nested `turn_id`. Otherwise
+For `telegram_deliver`, accept identity only from host context outside the
+model-visible arguments. Prefer matching top-level `threadId`, nested
+`thread_id`, and nested `session_id` plus a valid nested `turn_id` for
+`bound_task`. When request metadata is absent, accept the host-inherited
+`CODEX_THREAD_ID` as `bound_thread`. Conflicting or invalid host identities
 produce `notification_only`. Never infer identity from cwd, title, timing, or
 recent activity.
 
@@ -64,6 +68,6 @@ permission approvals remain unsupported. Gateway turns already use the fixed
 - Desktop turns owned by another app-server connection still receive only
   watched terminal-state notifications; their interactive requests are not
   intercepted by this gateway.
-- Trusted automatic binding degrades to `notification_only` when Codex metadata
-  is missing or changes incompatibly, and is never inferred from cwd, title, or
-  recency.
+- Trusted automatic binding degrades to `bound_thread` when only the inherited
+  Codex thread is available, and to `notification_only` when host identity is
+  absent or conflicting. It is never inferred from cwd, title, or recency.

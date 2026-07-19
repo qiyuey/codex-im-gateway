@@ -82,7 +82,7 @@ export function notificationActionKeyboard(
   source: NotificationSource,
   language: GatewayLanguage,
 ): readonly (readonly TelegramInlineButton[])[] {
-  return source.kind === "bound_task"
+  return source.kind !== "notification_only"
     ? [taskSwitchButtonRow(source.codexThreadId, language)]
     : [[{ text: translate(language, "chooseTask"), callbackData: THREAD_PICKER_CALLBACK_DATA }]];
 }

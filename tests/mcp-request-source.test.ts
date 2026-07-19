@@ -41,6 +41,27 @@ describe("Codex MCP request identity", () => {
       }),
     ).toEqual({ kind: "notification_only" });
   });
+
+  it("binds the switch action to the trusted inherited Codex thread without turn metadata", () => {
+    expect(notificationSourceFromRequestMeta(undefined, "thread-1")).toEqual({
+      kind: "bound_thread",
+      codexThreadId: "thread-1",
+    });
+  });
+
+  it("fails closed when request metadata conflicts with the inherited Codex thread", () => {
+    expect(notificationSourceFromRequestMeta(codexMeta(), "thread-2")).toEqual({
+      kind: "bound_task",
+      codexThreadId: "thread-1",
+      codexTurnId: "turn-1",
+    });
+    expect(
+      notificationSourceFromRequestMeta(
+        { threadId: "thread-2", "x-codex-turn-metadata": { thread_id: "thread-2" } },
+        "thread-1",
+      ),
+    ).toEqual({ kind: "notification_only" });
+  });
 });
 
 function codexMeta(

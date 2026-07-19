@@ -29,10 +29,13 @@ automatic duplicate.
 
 The MCP host may attach trusted Codex request metadata outside the model-visible
 tool arguments. When its thread and session identifiers agree, the gateway binds
-the Telegram card to that exact task automatically. If the host omits this
-metadata or it fails validation, the gateway safely sends an independent
-notification instead. Never add, infer, or fabricate thread identifiers in tool
-arguments from cwd, title, timing, or recent activity.
+the Telegram card to that exact task and turn automatically. If turn metadata is
+unavailable but the host process provides its inherited `CODEX_THREAD_ID`, the
+card still receives a direct switch action for that exact task without claiming
+turn-level deduplication. If neither trusted source is available or they
+conflict, the gateway safely sends an independent notification instead. Never
+add, infer, or fabricate thread identifiers in tool arguments from cwd, title,
+timing, or recent activity.
 
 If the task fails before producing its intended artifact, still deliver one failure summary when
 the prompt requires delivery. Never claim delivery succeeded when the MCP call failed.

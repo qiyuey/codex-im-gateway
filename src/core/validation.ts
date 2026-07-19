@@ -30,8 +30,10 @@ export function validateNotificationInput(input: EnqueueNotificationInput): void
   assertNonEmpty(input.title, "title", MAX_NOTIFICATION_TITLE_LENGTH);
   assertNonEmpty(input.message, "message", MAX_NOTIFICATION_MESSAGE_LENGTH);
   if (input.channel !== "telegram") throw new Error("Unsupported notification channel");
-  if (input.source.kind === "bound_task") {
+  if (input.source.kind !== "notification_only") {
     assertNonEmpty(input.source.codexThreadId, "source.codexThreadId", MAX_IDENTIFIER_LENGTH);
+  }
+  if (input.source.kind === "bound_task") {
     assertNonEmpty(input.source.codexTurnId, "source.codexTurnId", MAX_IDENTIFIER_LENGTH);
   }
 }

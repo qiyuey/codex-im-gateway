@@ -162,4 +162,48 @@ describe("Telegram result senders", () => {
       [{ text: "Switch to this task", callbackData: "switch:thread-2" }],
     ]);
   });
+
+  it("adds a direct switch action to a thread-bound notification", async () => {
+    const sendRichMessage = vi.fn(
+      async (
+        _chatId: number,
+        _markdown: string,
+        _topicId?: string | null,
+        _keyboard?: unknown,
+      ) => ({
+        chatId: 42,
+        messageId: "notification-thread",
+        topicId: null,
+      }),
+    );
+    const sender = new TelegramNotificationSender(
+      { sendRichMessage } as unknown as TelegramApi,
+      42,
+      "en",
+    );
+
+    await sender.sendNotification({
+      id: "notification-thread",
+      idempotencyKey: "thread:run-3",
+      channel: "telegram",
+      cwd: "/workspace/project",
+      title: "Thread-bound report",
+      message: "Done",
+      source: { kind: "bound_thread", codexThreadId: "thread-3" },
+      ingress: { producer: "mcp", producerVersion: "0.1.0", protocolVersion: 1 },
+      state: "queued",
+      attemptCount: 0,
+      nextAttemptAt: 0,
+      leaseExpiresAt: null,
+      leaseToken: null,
+      platformMessageId: null,
+      lastError: null,
+      createdAt: 0,
+      updatedAt: 0,
+    });
+
+    expect(sendRichMessage.mock.calls[0]?.[3]).toEqual([
+      [{ text: "Switch to this task", callbackData: "switch:thread-3" }],
+    ]);
+  });
 });

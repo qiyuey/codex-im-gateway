@@ -214,4 +214,70 @@ export const migrations: readonly Migration[] = [
         CHECK (route_next_message IN (0, 1));
     `,
   },
+  {
+    version: 8,
+    name: "thread_bound_explicit_notifications",
+    sql: `
+      DROP TRIGGER outbound_notification_source_insert_check;
+      DROP TRIGGER outbound_notification_source_update_check;
+
+      CREATE TABLE outbound_notifications_v8 (
+        id TEXT PRIMARY KEY,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        channel TEXT NOT NULL CHECK (channel IN ('telegram')),
+        cwd TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('queued', 'leased', 'delivered', 'dead_letter')),
+        attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+        next_attempt_at INTEGER NOT NULL,
+        lease_expires_at INTEGER,
+        lease_token TEXT,
+        platform_message_id TEXT,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        source_kind TEXT NOT NULL DEFAULT 'notification_only'
+          CHECK (source_kind IN ('notification_only', 'bound_thread', 'bound_task')),
+        codex_thread_id TEXT,
+        codex_turn_id TEXT,
+        ingress_producer TEXT NOT NULL DEFAULT 'legacy'
+          CHECK (ingress_producer IN ('stop_hook', 'mcp', 'internal', 'legacy')),
+        producer_version TEXT NOT NULL DEFAULT '0.1.0',
+        protocol_version INTEGER NOT NULL DEFAULT 1 CHECK (protocol_version > 0),
+        CHECK ((state = 'leased') = (lease_expires_at IS NOT NULL AND lease_token IS NOT NULL))
+      ) STRICT;
+
+      INSERT INTO outbound_notifications_v8 SELECT * FROM outbound_notifications;
+      DROP TABLE outbound_notifications;
+      ALTER TABLE outbound_notifications_v8 RENAME TO outbound_notifications;
+
+      CREATE INDEX outbound_notifications_ready_idx
+        ON outbound_notifications (state, next_attempt_at, created_at);
+      CREATE INDEX outbound_notifications_lease_idx
+        ON outbound_notifications (state, lease_expires_at);
+
+      CREATE TRIGGER outbound_notification_source_insert_check
+      BEFORE INSERT ON outbound_notifications
+      WHEN NOT (
+        (NEW.source_kind = 'notification_only' AND NEW.codex_thread_id IS NULL AND NEW.codex_turn_id IS NULL) OR
+        (NEW.source_kind = 'bound_thread' AND NEW.codex_thread_id IS NOT NULL AND NEW.codex_turn_id IS NULL) OR
+        (NEW.source_kind = 'bound_task' AND NEW.codex_thread_id IS NOT NULL AND NEW.codex_turn_id IS NOT NULL)
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'invalid outbound notification source');
+      END;
+
+      CREATE TRIGGER outbound_notification_source_update_check
+      BEFORE UPDATE OF source_kind, codex_thread_id, codex_turn_id ON outbound_notifications
+      WHEN NOT (
+        (NEW.source_kind = 'notification_only' AND NEW.codex_thread_id IS NULL AND NEW.codex_turn_id IS NULL) OR
+        (NEW.source_kind = 'bound_thread' AND NEW.codex_thread_id IS NOT NULL AND NEW.codex_turn_id IS NULL) OR
+        (NEW.source_kind = 'bound_task' AND NEW.codex_thread_id IS NOT NULL AND NEW.codex_turn_id IS NOT NULL)
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'invalid outbound notification source');
+      END;
+    `,
+  },
 ] as const;

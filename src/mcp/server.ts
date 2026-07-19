@@ -132,7 +132,7 @@ server.registerTool(
         cwd: resolve(cwd),
         title,
         message,
-        source: notificationSourceFromRequestMeta(extra._meta),
+        source: notificationSourceFromRequestMeta(extra._meta, process.env.CODEX_THREAD_ID),
         ingress: { producer: "mcp" },
       });
       return success({ notificationId: notification.id, state: notification.state, duplicate });

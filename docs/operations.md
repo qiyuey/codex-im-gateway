@@ -48,8 +48,9 @@ Bound completion messages show **切换到此任务** / **停止此任务通知*
 actions preserve the result text; stopping notifications updates only the
 buttons. Explicit
 `$telegram-delivery` messages automatically bind to the originating task when
-Codex supplies consistent request-level thread and turn metadata. If that
-metadata is unavailable or invalid, the message is labeled
+Codex supplies consistent request-level thread and turn metadata, or an exact
+host-inherited thread identity when turn metadata is unavailable. If trusted
+task identity is unavailable or conflicting, the message is labeled
 **这是一条独立通知，未关联可继续对话的 Codex 任务** and its **选择任务** action
 opens the workspace-filtered project picker without implying an exact task
 binding. Automatically bound notifications use **切换到此任务**. For

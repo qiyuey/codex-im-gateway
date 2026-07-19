@@ -51,6 +51,10 @@ export interface EventCounts {
 export type NotificationSource =
   | { readonly kind: "notification_only" }
   | {
+      readonly kind: "bound_thread";
+      readonly codexThreadId: string;
+    }
+  | {
       readonly kind: "bound_task";
       readonly codexThreadId: string;
       readonly codexTurnId: string;

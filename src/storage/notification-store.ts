@@ -18,7 +18,7 @@ interface NotificationRow {
   cwd: string;
   title: string;
   message: string;
-  source_kind: "notification_only" | "bound_task";
+  source_kind: "notification_only" | "bound_thread" | "bound_task";
   codex_thread_id: string | null;
   codex_turn_id: string | null;
   ingress_producer: IngressProducer;
@@ -59,7 +59,7 @@ export class OutboundNotificationStore {
         input.title,
         input.message,
         input.source.kind,
-        input.source.kind === "bound_task" ? input.source.codexThreadId : null,
+        input.source.kind !== "notification_only" ? input.source.codexThreadId : null,
         input.source.kind === "bound_task" ? input.source.codexTurnId : null,
         input.ingress?.producer ?? "internal",
         input.ingress?.producerVersion ?? GATEWAY_RUNTIME_VERSION,
@@ -230,7 +230,9 @@ function mapNotification(row: NotificationRow): OutboundNotification {
             codexThreadId: row.codex_thread_id,
             codexTurnId: row.codex_turn_id,
           }
-        : { kind: "notification_only" },
+        : row.source_kind === "bound_thread" && row.codex_thread_id
+          ? { kind: "bound_thread", codexThreadId: row.codex_thread_id }
+          : { kind: "notification_only" },
     ingress: {
       producer: row.ingress_producer,
       producerVersion: row.producer_version,

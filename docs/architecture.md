@@ -21,9 +21,10 @@ identifier for that next message, the explicit selection is used once and then c
 unknown replies continue to fail closed.
 
 Outbound messages have a required identity kind. `bound_task` includes an exact
-thread/turn pair and may promise reply-to-continue; `notification_only` contains
-no source identity and must not imply that a reply resumes Codex. Identity is
-never inferred from cwd, title, recency, or the active-thread pointer.
+thread/turn pair, `bound_thread` includes an exact host-inherited thread for a
+direct switch action, and `notification_only` contains no source identity.
+Identity is never inferred from cwd, title, recency, or the active-thread
+pointer.
 
 ## Components
 
@@ -62,12 +63,13 @@ The `$telegram-delivery` skill defines an opt-in workflow contract. After the
 task and its verification finish, Codex calls `telegram_deliver` once with a
 self-contained title, result message, and absolute workspace path. The MCP tool
 only inserts a local notification; it does not call Telegram. At the enqueue
-boundary it reads Codex's request-level MCP metadata, which is separate from the
-model-visible arguments. A notification becomes `bound_task` only when the
-top-level `threadId` and the nested `thread_id` and `session_id` all match and a
-valid `turn_id` is present. Missing, malformed, or inconsistent metadata safely
-produces `notification_only`; identity is never accepted from ordinary tool
-arguments.
+boundary it reads Codex's request-level MCP metadata and inherited host thread,
+which are separate from the model-visible arguments. A notification becomes
+`bound_task` only when the top-level `threadId` and nested `thread_id` and
+`session_id` all match and a valid `turn_id` is present. When request metadata is
+absent but `CODEX_THREAD_ID` is inherited from the host, it becomes
+`bound_thread`; conflicting or missing host identity safely produces
+`notification_only`. Identity is never accepted from ordinary tool arguments.
 
 The result message contract is Rich Markdown. Final task results, watched Codex
 turns, and streamed/final Codex content use Telegram Rich Messages, preserving
@@ -156,9 +158,10 @@ different threads concurrently while serializing each individual thread.
 Input callbacks additionally bind an opaque in-memory token to the exact chat,
 topic, Telegram message, Codex thread/turn, request, and current question. They
 expire on TTL, request resolution, turn completion, or process restart.
-Notification action callbacks preserve source identity: `bound_task` actions
-carry the exact thread ID, while `notification_only` actions only open the
-workspace-filtered task picker and never infer a thread from project or recency.
+Notification action callbacks preserve source identity: `bound_task` and
+`bound_thread` actions carry the exact thread ID, while `notification_only`
+actions only open the workspace-filtered task picker and never infer a thread
+from project or recency.
 
 Inline interactions follow an explicit message-lifetime contract:
 
