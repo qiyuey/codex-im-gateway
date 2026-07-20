@@ -1,6 +1,6 @@
 {
   "name": "codex-im",
-  "version": "0.1.0+codex.20260720071340",
+  "version": "0.1.0+codex.20260720072240",
   "description": "Deliver Codex task results to IM platforms and continue their exact threads.",
   "author": {
     "name": "Codex IM contributors"
@@ -8,7 +8,13 @@
   "license": "MIT",
   "keywords": ["codex", "telegram", "notifications", "threads"],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": {
+    "gateway": {
+      "command": "node",
+      "args": ["./dist/mcp/server.js"],
+      "cwd": "."
+    }
+  },
   "interface": {
     "displayName": "Codex IM",
     "shortDescription": "Send Codex results to IM and route replies back.",

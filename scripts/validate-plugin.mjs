@@ -28,10 +28,19 @@ assert(
 );
 assert(typeof manifest.author?.name === "string", "missing author.name");
 assert(manifest.skills === "./skills/", "skills must use the plugin-relative directory");
-assert(manifest.mcpServers === "./.mcp.json", "MCP config path is invalid");
+assert(
+  JSON.stringify(manifest.mcpServers) ===
+    JSON.stringify({
+      gateway: {
+        command: "node",
+        args: ["./dist/mcp/server.js"],
+        cwd: ".",
+      },
+    }),
+  "inline MCP config is invalid",
+);
 
 await Promise.all([
-  access(".mcp.json"),
   access("hooks/hooks.json"),
   access("skills/gateway/SKILL.md"),
   access("skills/telegram-delivery/SKILL.md"),
@@ -58,13 +67,18 @@ assert(
 );
 assert(builtStopHook.includes("unable to queue completion event"), "built Stop hook is missing");
 assert(packagedManifest.version === manifest.version, "packaged plugin version is stale");
+assert(
+  JSON.stringify(packagedManifest.mcpServers) === JSON.stringify(manifest.mcpServers),
+  "packaged inline MCP config is stale",
+);
 await Promise.all([
   access("artifacts/plugin/dist/hooks/stop.js"),
   access("artifacts/plugin/dist/mcp/server.js"),
-  access("artifacts/plugin/.mcp.json"),
   access("artifacts/runtime/dist/daemon.js"),
   access("artifacts/runtime/dist/cli.js"),
 ]);
+await assertMissing(".mcp.json", "root MCP config triggers project migration prompts");
+await assertMissing("artifacts/plugin/.mcp.json", "plugin artifact must use the inline MCP config");
 await assertMissing(
   "artifacts/plugin/dist/daemon.js",
   "plugin artifact must not contain the supervised daemon",

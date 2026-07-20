@@ -38,7 +38,6 @@ await Promise.all([
   cp("skills", "artifacts/plugin/skills", { recursive: true }),
   cp("dist/hooks", "artifacts/plugin/dist/hooks", { recursive: true }),
   cp("dist/mcp", "artifacts/plugin/dist/mcp", { recursive: true }),
-  copyFile(".mcp.json", "artifacts/plugin/.mcp.json"),
   copyFile("LICENSE", "artifacts/plugin/LICENSE"),
   copyFile("dist/daemon.js", "artifacts/runtime/dist/daemon.js"),
   copyFile("dist/daemon.js.map", "artifacts/runtime/dist/daemon.js.map"),
