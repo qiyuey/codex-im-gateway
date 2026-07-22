@@ -249,6 +249,37 @@ describe("TelegramService", () => {
     expect(state.getActiveThread("telegram", "42")).toBe("created-thread");
   });
 
+  it("runs the first prompt without resuming a newly started unmaterialized task", async () => {
+    codex.readThreadSnapshot.mockImplementation(async (threadId: string) => {
+      if (codex.runTurn.mock.calls.length === 0) {
+        throw new Error("thread is not materialized yet");
+      }
+      return {
+        threadId,
+        cwd: directory,
+        latestTurn: null,
+        latestTerminalTurn: null,
+        latestTerminalTurnId: null,
+        blockedGoal: null,
+      };
+    });
+
+    await service.handleMessage(message({ text: "/new" }));
+    await service.handleCallbackQuery(callbackQuery({ data: "new:0" }));
+    await service.handleMessage(message({ text: "first prompt" }));
+    await service.drain();
+
+    expect(codex.resumeThread).not.toHaveBeenCalled();
+    expect(codex.readThreadSnapshot).toHaveBeenCalledOnce();
+    expect(codex.runTurn).toHaveBeenCalledWith(
+      "created-thread",
+      "first prompt",
+      expect.any(Function),
+    );
+    expect(state.getActiveThread("telegram", "42")).toBe("created-thread");
+    expect(api.edits.at(-1)?.content).toContain("final answer");
+  });
+
   it("rejects stale or malformed new-task directory callbacks", async () => {
     await service.handleCallbackQuery(callbackQuery({ data: "new:99" }));
 

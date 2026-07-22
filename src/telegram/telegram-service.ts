@@ -70,6 +70,7 @@ export class TelegramService {
   private readonly queue = new ThreadQueue();
   private readonly background = new Set<Promise<unknown>>();
   private readonly activeTurnContexts = new Map<string, ActiveTurnContext>();
+  private readonly freshThreadCwds = new Map<string, string>();
   private readonly pendingUserInputs = new Map<string, PendingUserInput>();
   private readonly pendingInputByMessage = new Map<string, string>();
   private readonly pendingInputByRequest = new Map<string, string>();
@@ -278,6 +279,7 @@ export class TelegramService {
     await this.api.answerCallbackQuery(query.queryId);
     try {
       const response = await this.appServer.startThread(cwd);
+      this.freshThreadCwds.set(response.thread.id, cwd);
       this.state.selectAndWatchThread(
         "telegram",
         String(query.chatId),
@@ -786,18 +788,21 @@ export class TelegramService {
       return;
     }
 
-    let resumed: Awaited<ReturnType<TelegramCodexService["resumeThread"]>>;
-    try {
-      resumed = await this.appServer.resumeThread(decision.threadId);
-    } catch {
-      await this.rejectUnavailableRoute(message, decision, "unavailable");
-      return;
+    const freshCwd = this.freshThreadCwds.get(decision.threadId);
+    let cwd = freshCwd;
+    if (cwd === undefined) {
+      try {
+        cwd = (await this.appServer.resumeThread(decision.threadId)).cwd;
+      } catch {
+        await this.rejectUnavailableRoute(message, decision, "unavailable");
+        return;
+      }
     }
-    if (!(await isWorkspaceAllowed(resumed.cwd, authorizedWorkspaces(this.config)))) {
+    if (!(await isWorkspaceAllowed(cwd, authorizedWorkspaces(this.config)))) {
       await this.rejectUnavailableRoute(message, decision, "workspace_not_allowed");
       return;
     }
-    if (!this.queue.isBusy(decision.threadId)) {
+    if (freshCwd === undefined && !this.queue.isBusy(decision.threadId)) {
       try {
         const snapshot = await this.appServer.readThreadSnapshot(decision.threadId);
         if (snapshot.latestTurn?.status === "in_progress") {
@@ -817,7 +822,7 @@ export class TelegramService {
     );
     this.state.bindMessage("telegram", chatId, placeholder.messageId, decision.threadId, "pending");
     const task = this.queue.enqueue(decision.threadId, () =>
-      this.runFollowUp(decision.threadId, message.text, placeholder, resumed.cwd),
+      this.runFollowUp(decision.threadId, message.text, placeholder, cwd),
     );
     this.background.add(task);
     void task.then(
@@ -843,6 +848,7 @@ export class TelegramService {
     this.activeTurnContexts.set(threadId, context);
     try {
       const result = await this.appServer.runTurn(threadId, prompt, (text) => editor.update(text));
+      this.freshThreadCwds.delete(threadId);
       await editor.finish(result);
       this.state.recordTerminalDelivery(
         {
