@@ -23,7 +23,7 @@ export class ThreadWatchMonitor {
     private readonly workspaceAllowed: (cwd: string) => Promise<boolean> = async () => true,
     private readonly pollIntervalMs = 5_000,
     private readonly language: GatewayLanguage = "zh",
-    private readonly tasksWorkspace?: string,
+    private readonly chatsWorkspace?: string,
   ) {}
 
   async initializeExistingSelections(): Promise<void> {
@@ -139,7 +139,7 @@ export class ThreadWatchMonitor {
       renderCompletionParts(
         turn,
         this.language,
-        turn.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+        turn.cwd === this.chatsWorkspace ? "Chats" : undefined,
       ),
       watch.topicId,
       taskActionKeyboard(turn.threadId, this.language),
@@ -167,7 +167,7 @@ export class ThreadWatchMonitor {
       renderWatchedBlockedParts(
         snapshot,
         this.language,
-        snapshot.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+        snapshot.cwd === this.chatsWorkspace ? "Chats" : undefined,
       ),
       watch.topicId,
       taskActionKeyboard(snapshot.threadId, this.language),

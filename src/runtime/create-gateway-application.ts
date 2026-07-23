@@ -1,5 +1,6 @@
 import { GatewayApplication } from "../application/gateway-application.js";
 import { AppServerClient } from "../codex/app-server-client.js";
+import { resolveCodexChatsWorkspace } from "../codex/chats-workspace.js";
 import { authorizedWorkspaces, loadRuntimeConfig } from "../config/runtime-config.js";
 import { Dispatcher } from "../dispatcher/dispatcher.js";
 import { NotificationDispatcher } from "../dispatcher/notification-dispatcher.js";
@@ -19,6 +20,7 @@ import { resolveRuntimeLockPath, SingleInstanceLock } from "./single-instance-lo
 
 export function createGatewayApplication(env: NodeJS.ProcessEnv = process.env): GatewayApplication {
   const config = loadRuntimeConfig(env);
+  const chatsWorkspace = resolveCodexChatsWorkspace();
   const workspaceRoots = authorizedWorkspaces(config);
   const database = openGatewayDatabase(env);
   const events = new CompletionEventStore(database);
@@ -46,7 +48,7 @@ export function createGatewayApplication(env: NodeJS.ProcessEnv = process.env): 
       telegram,
       config.telegramAllowedChatId,
       config.language,
-      config.tasksWorkspace,
+      chatsWorkspace,
     ),
     target,
     (cwd) => isWorkspaceAllowed(cwd, workspaceRoots),
@@ -81,7 +83,7 @@ export function createGatewayApplication(env: NodeJS.ProcessEnv = process.env): 
     (cwd) => isWorkspaceAllowed(cwd, workspaceRoots),
     5_000,
     config.language,
-    config.tasksWorkspace,
+    chatsWorkspace,
   );
   return new GatewayApplication({
     config,

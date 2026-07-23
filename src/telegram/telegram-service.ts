@@ -7,6 +7,7 @@ import type {
   WatchedThreadSnapshot,
 } from "../codex/app-server-client.js";
 import { type CodexAppUiState, loadCodexAppUiState } from "../codex/app-ui-state.js";
+import { resolveCodexChatsWorkspace } from "../codex/chats-workspace.js";
 import type { ToolRequestUserInputAnswer } from "../codex/protocol/v2/ToolRequestUserInputAnswer.js";
 import { ThreadQueue } from "../concurrency/thread-queue.js";
 import { authorizedWorkspaces, type RuntimeConfig } from "../config/runtime-config.js";
@@ -84,6 +85,7 @@ export class TelegramService {
     private readonly editDebounceMs = 750,
     private readonly inboundEnabled: () => boolean = () => true,
     private readonly appUiStateLoader: () => Promise<CodexAppUiState | null> = loadCodexAppUiState,
+    private readonly chatsWorkspace = resolveCodexChatsWorkspace(),
   ) {
     this.unsubscribe.push(
       this.appServer.onUserInputRequest((request) => {
@@ -267,7 +269,7 @@ export class TelegramService {
     const directoryIndex = Number(directoryId);
     const cwd =
       directoryId === "none"
-        ? this.config.tasksWorkspace
+        ? this.chatsWorkspace
         : Number.isSafeInteger(directoryIndex) && directoryIndex >= 0
           ? this.config.allowedWorkspaces[directoryIndex]
           : undefined;
@@ -566,7 +568,7 @@ export class TelegramService {
     }
 
     await this.api.answerCallbackQuery(query.queryId);
-    const label = project?.label ?? this.text("otherTasks");
+    const label = project?.label ?? this.text("chats");
     const text = threads.length
       ? this.text("chooseTaskInProject", { project: label })
       : this.text("noProjectTasks", { project: label });
@@ -842,7 +844,7 @@ export class TelegramService {
       placeholder,
       this.editDebounceMs,
       this.config.language,
-      this.config.tasksWorkspace,
+      this.chatsWorkspace,
     );
     const context = { ref: placeholder, cwd } satisfies ActiveTurnContext;
     this.activeTurnContexts.set(threadId, context);
@@ -1022,7 +1024,7 @@ class StreamingEditor {
     private readonly ref: TelegramMessageRef,
     private readonly debounceMs: number,
     private readonly language: GatewayLanguage,
-    private readonly tasksWorkspace: string,
+    private readonly chatsWorkspace: string,
   ) {}
 
   update(text: string): void {
@@ -1048,7 +1050,7 @@ class StreamingEditor {
           finalMessage: result.finalMessage || this.text,
         },
         this.language,
-        result.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+        result.cwd === this.chatsWorkspace ? "Chats" : undefined,
       ),
       taskActionKeyboard(result.threadId, this.language),
     );
@@ -1085,7 +1087,7 @@ function threadProjectKeyboard(catalog: ThreadProjectCatalog, language: GatewayL
   ]);
   keyboard.push([
     {
-      text: `📋 ${translate(language, "otherTasks")}`,
+      text: `📋 ${translate(language, "chats")}`,
       callbackData: `${PROJECT_CALLBACK_PREFIX}${NO_PROJECT_ID}`,
     },
   ]);
@@ -1102,7 +1104,7 @@ function newTaskDirectoryKeyboard(allowedWorkspaces: readonly string[], language
   ]);
   keyboard.push([
     {
-      text: `📋 ${translate(language, "noDirectoryTask")}`,
+      text: `📋 ${translate(language, "projectlessChats")}`,
       callbackData: NEW_TASK_NO_DIRECTORY_CALLBACK_DATA,
     },
   ]);

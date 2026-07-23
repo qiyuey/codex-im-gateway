@@ -8,6 +8,7 @@ import type {
   UserInputRequest,
 } from "../src/codex/app-server-client.js";
 import type { CodexAppUiState } from "../src/codex/app-ui-state.js";
+import { resolveCodexChatsWorkspace } from "../src/codex/chats-workspace.js";
 import type { RuntimeConfig } from "../src/config/runtime-config.js";
 import { GatewayDatabase } from "../src/storage/database.js";
 import { GatewayStateStore } from "../src/storage/gateway-state-store.js";
@@ -41,7 +42,6 @@ beforeEach(async () => {
     telegramAllowedUserId: 7,
     telegramAllowedChatId: 42,
     allowedWorkspaces: [directory],
-    tasksWorkspace: join(directory, "Tasks"),
     dispatchIntervalMs: 100,
     language: "zh",
   };
@@ -227,7 +227,7 @@ describe("TelegramService", () => {
       content: "请选择新任务使用的目录：",
       inlineKeyboard: [
         [{ text: expect.stringContaining("gateway-telegram-"), callbackData: "new:0" }],
-        [{ text: "📋 无项目任务（Tasks）", callbackData: "new:none" }],
+        [{ text: "📋 Chats（无项目）", callbackData: "new:none" }],
         [{ text: "✖️ 取消", callbackData: "new:cancel" }],
       ],
     });
@@ -241,11 +241,11 @@ describe("TelegramService", () => {
     expect(api.edits.at(-1)?.inlineKeyboard).toEqual([]);
   });
 
-  it("creates a task in the dedicated projectless workspace when Tasks is selected", async () => {
+  it("creates a task in the dedicated projectless workspace when Chats is selected", async () => {
     await service.handleMessage(message({ text: "/new" }));
     await service.handleCallbackQuery(callbackQuery({ data: "new:none" }));
 
-    expect(codex.startThread).toHaveBeenCalledWith(config.tasksWorkspace);
+    expect(codex.startThread).toHaveBeenCalledWith(resolveCodexChatsWorkspace());
     expect(state.getActiveThread("telegram", "42")).toBe("created-thread");
   });
 
@@ -384,7 +384,7 @@ describe("TelegramService", () => {
       callbackData: expect.stringMatching(/^project:[A-Za-z0-9_-]{16}$/),
     });
     expect(api.sent[0]?.inlineKeyboard?.[1]?.[0]).toEqual({
-      text: "📋 其他任务",
+      text: "📋 Chats",
       callbackData: "project:none",
     });
     const projectCallback = api.sent[0]?.inlineKeyboard?.[0]?.[0]?.callbackData;
@@ -438,7 +438,7 @@ describe("TelegramService", () => {
     expect(api.sent[0]).toMatchObject({
       content: "请选择项目：",
       inlineKeyboard: [
-        [{ text: "📋 其他任务", callbackData: "project:none" }],
+        [{ text: "📋 Chats", callbackData: "project:none" }],
         [
           { text: "⬅️ 返回", callbackData: "threads:back" },
           { text: "✖️ 取消", callbackData: "threads:cancel" },
@@ -458,7 +458,7 @@ describe("TelegramService", () => {
     });
   });
 
-  it("groups allowed threads without a Git project under Tasks", async () => {
+  it("groups allowed threads without a Git project under Chats", async () => {
     codex.listThreads.mockResolvedValue({
       data: [{ id: "projectless-thread", cwd: directory, name: "Quick task", preview: "" }],
       nextCursor: null,
@@ -468,7 +468,7 @@ describe("TelegramService", () => {
     await service.handleMessage(message({ text: "/threads" }));
 
     expect(api.sent[0]?.inlineKeyboard).toEqual([
-      [{ text: "📋 其他任务", callbackData: "project:none" }],
+      [{ text: "📋 Chats", callbackData: "project:none" }],
       [
         { text: "⬅️ 返回", callbackData: "threads:back" },
         { text: "✖️ 取消", callbackData: "threads:cancel" },
@@ -479,7 +479,7 @@ describe("TelegramService", () => {
 
     expect(api.sent).toHaveLength(1);
     expect(api.edits[0]).toMatchObject({
-      content: "请选择“其他任务”中的任务：",
+      content: "请选择“Chats”中的任务：",
       format: "plain_text",
       inlineKeyboard: [
         [{ text: "projectl · Quick task", callbackData: "thread:projectless-thread" }],
@@ -505,7 +505,7 @@ describe("TelegramService", () => {
     expect(api.edits.at(-1)).toMatchObject({
       content: "请选择项目：",
       inlineKeyboard: [
-        [{ text: "📋 其他任务", callbackData: "project:none" }],
+        [{ text: "📋 Chats", callbackData: "project:none" }],
         [
           { text: "⬅️ 返回", callbackData: "threads:back" },
           { text: "✖️ 取消", callbackData: "threads:cancel" },
@@ -528,14 +528,14 @@ describe("TelegramService", () => {
     expect(api.edits.at(-1)).toMatchObject({ content: "已返回。", inlineKeyboard: [] });
   });
 
-  it("shows an empty Tasks group and removes the project keyboard", async () => {
+  it("shows an empty Chats group and removes the project keyboard", async () => {
     await mkdir(join(directory, ".git"));
 
     await service.handleCallbackQuery(callbackQuery({ data: "project:none" }));
 
     expect(api.sent).toHaveLength(0);
     expect(api.edits[0]).toMatchObject({
-      content: "“其他任务”中没有可用任务。",
+      content: "“Chats”中没有可用任务。",
       format: "plain_text",
       inlineKeyboard: [
         [
@@ -578,7 +578,7 @@ describe("TelegramService", () => {
       expect(api.sent[0]?.inlineKeyboard?.map((row) => row[0]?.text)).toEqual([
         expect.stringContaining("gateway-telegram-"),
         expect.stringContaining("gateway-financial-"),
-        "📋 其他任务",
+        "📋 Chats",
         "⬅️ 返回",
       ]);
       expect(codex.listThreads).toHaveBeenNthCalledWith(2, 100, "next-page");

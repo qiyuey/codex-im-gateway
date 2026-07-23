@@ -14,7 +14,6 @@ describe("GatewayApplication", () => {
         telegramAllowedUserId: 7,
         telegramAllowedChatId: 7,
         allowedWorkspaces: ["/workspace"],
-        tasksWorkspace: "/tasks",
         dispatchIntervalMs: 10_000,
         language: "zh",
       },

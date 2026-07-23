@@ -35,7 +35,7 @@ describe("Telegram rendering", () => {
     expect(rendered).not.toContain("---");
   });
 
-  it("labels projectless task cards as Tasks and keeps reusable task actions", () => {
+  it("labels projectless task cards as Chats and keeps reusable task actions", () => {
     const rendered = renderCompletion(
       {
         threadId: "thread-123456",
@@ -46,10 +46,10 @@ describe("Telegram rendering", () => {
         durationMs: null,
       },
       "en",
-      "Tasks",
+      "Chats",
     );
 
-    expect(rendered).toContain("# ✅ Tasks · thread\\-1");
+    expect(rendered).toContain("# ✅ Chats · thread\\-1");
     expect(taskActionKeyboard("thread-123456", "en")).toEqual([
       [
         { text: "Switch to this task", callbackData: "switch:thread-123456" },

@@ -10,7 +10,7 @@ export class TelegramCompletionSender implements CompletionSender {
     private readonly api: TelegramApi,
     private readonly chatId: number,
     private readonly language: GatewayLanguage = "zh",
-    private readonly tasksWorkspace?: string,
+    private readonly chatsWorkspace?: string,
   ) {}
 
   async sendCompletion(
@@ -23,7 +23,7 @@ export class TelegramCompletionSender implements CompletionSender {
       renderCompletionParts(
         result,
         this.language,
-        result.cwd === this.tasksWorkspace ? "Tasks" : undefined,
+        result.cwd === this.chatsWorkspace ? "Chats" : undefined,
       ),
       null,
       taskActionKeyboard(result.threadId, this.language),

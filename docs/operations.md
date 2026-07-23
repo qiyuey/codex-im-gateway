@@ -31,7 +31,7 @@ answers and caller-provided notification titles/messages are not translated.
 
 Every top-level Codex turn is captured automatically by the plugin `Stop` hook.
 The task workspace must be within `CODEX_IM_ALLOWED_WORKSPACES` or the
-dedicated `CODEX_IM_TASKS_WORKSPACE` used for Tasks without a project;
+product-managed `~/Documents/Codex` workspace used for Chats without a Project;
 otherwise the daemon moves its completion event to dead letter without sending
 it. Use `$telegram-delivery` only when a workflow needs a custom explicit result
 message; a bound explicit result is deduplicated against the automatic card for

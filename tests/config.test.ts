@@ -1,7 +1,7 @@
-import { homedir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadRuntimeConfig } from "../src/config/runtime-config.js";
+import { resolveCodexChatsWorkspace } from "../src/codex/chats-workspace.js";
+import { authorizedWorkspaces, loadRuntimeConfig } from "../src/config/runtime-config.js";
 
 describe("loadRuntimeConfig", () => {
   it("parses identities, workspaces, and polling interval", () => {
@@ -17,22 +17,27 @@ describe("loadRuntimeConfig", () => {
       telegramAllowedUserId: 7,
       telegramAllowedChatId: 7,
       allowedWorkspaces: [resolve("./one"), resolve("./two")],
-      tasksWorkspace: join(homedir(), "Documents", "Codex"),
       dispatchIntervalMs: 250,
       language: "zh",
     });
   });
 
-  it("supports an explicit Tasks workspace", () => {
+  it("uses the Codex-managed Chats workspace without exposing configuration", () => {
+    expect(resolveCodexChatsWorkspace("/Users/example")).toBe("/Users/example/Documents/Codex");
+
     const config = loadRuntimeConfig({
       TELEGRAM_BOT_TOKEN: "secret",
       TELEGRAM_ALLOWED_USER_ID: "7",
       TELEGRAM_ALLOWED_CHAT_ID: "7",
       CODEX_IM_ALLOWED_WORKSPACES: "./one",
-      CODEX_IM_TASKS_WORKSPACE: "./tasks",
+      CODEX_IM_CHATS_WORKSPACE: "./override",
+      CODEX_IM_TASKS_WORKSPACE: "./legacy-override",
     });
 
-    expect(config.tasksWorkspace).toBe(resolve("./tasks"));
+    expect(config).not.toHaveProperty("chatsWorkspace");
+    expect(authorizedWorkspaces(config)).toContain(resolveCodexChatsWorkspace());
+    expect(authorizedWorkspaces(config)).not.toContain(resolve("./override"));
+    expect(authorizedWorkspaces(config)).not.toContain(resolve("./legacy-override"));
   });
 
   it("supports English mode", () => {

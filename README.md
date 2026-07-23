@@ -71,7 +71,6 @@ TELEGRAM_BOT_TOKEN=your-bot-token
 TELEGRAM_ALLOWED_USER_ID=123456789
 TELEGRAM_ALLOWED_CHAT_ID=123456789
 CODEX_IM_ALLOWED_WORKSPACES=/absolute/path/to/workspace
-CODEX_IM_TASKS_WORKSPACE=/absolute/path/to/Documents/Codex
 CODEX_IM_LANGUAGE=en
 ```
 
@@ -79,8 +78,8 @@ CODEX_IM_LANGUAGE=en
   Group chats and other users are rejected.
 - `CODEX_IM_ALLOWED_WORKSPACES` accepts multiple absolute roots separated
   by `:` on macOS/Linux or `;` on Windows.
-- `CODEX_IM_TASKS_WORKSPACE` is the hidden workspace for Tasks without a
-  project. It defaults to `~/Documents/Codex` and is not shown as a project button.
+- Chats without a Project use Codex's product-managed `~/Documents/Codex`
+  workspace. Codex IM does not expose a separate directory setting for Chats.
 - `CODEX_IM_LANGUAGE` can be `en` or `zh` and defaults to `zh`. It changes
   gateway buttons, commands, task cards, prompts, and status messages, but does
   not translate Codex output.
@@ -172,7 +171,7 @@ offers a task picker instead.
 | `/threads` | Choose a project, then a recent task |
 | `/use <id-prefix>` | Select one task by an unambiguous ID prefix |
 | `/current` | Show the active task |
-| `/new` | Choose an allowed workspace, or Tasks without a project, then create a task |
+| `/new` | Choose an allowed workspace, or Chats without a project, then create a task |
 | `/mute` | Stop completion notifications for the active task |
 | `/unmute` | Restore completion notifications for the active task |
 | `/detach` | Clear the active task selection |
